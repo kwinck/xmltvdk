@@ -1,0 +1,4 @@
+#!/bin/sh
+nice tv_grab_dk_tdckabeltv -ou /home/mythtv/dk.xml
+nice sed -f /usr/bin/splittitle /home/mythtv/dk.xml >/home/mythtv/dk2.xml
+nice mythfilldatabase --update --file 1 -1 /home/mythtv/dk2.xml >/var/log/mythtv/mythfilldatabase.log

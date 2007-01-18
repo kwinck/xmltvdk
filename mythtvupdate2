@@ -1,0 +1,128 @@
+#!/bin/sh
+
+export xmldir="/home/thomas/.xmltv/data"
+export tlog="/home/thomas/.mythlog"
+export log="/var/log/mythtv/mythfilldatabase.log"
+
+export tdcgrabber="/usr/bin/tv_grab_dk_tdckabeltv -ou"
+export tv2grabber="/usr/bin/tv_grab_dk >"
+export tvggrabber="python /home/thomas/Programmering/python/tv_grab_dk_tvguiden/tv_grab_dk_tvguiden.py >"
+export ahotgrabber="python /home/thomas/Programmering/python/tv_grab_dk_ahot/tv_grab_dk_ahot.py >"
+export jubgrabber="python /home/thomas/Programmering/python/tv_grab_dk_jubii/tv_grab_dk_jubii.py >"
+export ontvgrabber="python /home/thomas/Programmering/python/tv_grab_dk_ontv/tv_grab_dk_ontv.py >"
+
+export tdcid="/home/thomas/Programmering/python/xmltv/tdcparsefile"
+export tv2id="/home/thomas/Programmering/python/xmltv/tv2parsefile"
+export tvgid="/home/thomas/Programmering/python/xmltv/tvguidenparsefile"
+export ahotid="/home/thomas/Programmering/python/tv_grab_dk_ahot/ahotparsefile"
+export jubid="/home/thomas/Programmering/python/tv_grab_dk_jubii/jubiiparsefile"
+export ontvid="/home/thomas/Programmering/python/tv_grab_dk_ontv/ontvparsefile"
+
+export runall="python /home/thomas/Programmering/python/runall/runall.py"
+export splittitle="sed -f /usr/bin/splittitle"
+export channelid="python /home/thomas/Programmering/python/xmltv/channelid.py"
+export merger="python /home/thomas/Programmering/python/xmltv/xmltvmerger.py"
+export timefix="python /home/thomas/Programmering/python/xmltv/timefix.py"
+export analyze="python /home/thomas/Programmering/python/xmltv/analyzeformater --pretty"
+export fill="mythfilldatabase --update --file 1 -l"
+
+export date=`date +"%F %T"`
+
+echo "" > $tlog
+chown thomas $tlog
+#rm $xmldir/old/*
+#mv $xmldir/* $xmldir/old/
+
+
+
+echo -e "\n\n\n\n =============== Grabber =============== \n" >> $tlog
+
+#su thomas -c "nice $runall \
+#'echo -e \"\n\n === TDC === \n\" > $tlog.tdc' \
+#'$tdcgrabber $xmldir/tdc 2>> $tlog.tdc' \
+#'echo -e \"\n\n === TV2 === \n\" > $tlog.tv2' \
+#'$tv2grabber $xmldir/tv2 2>> $tlog.tv2' \
+#'echo -e \"\n\n === Tvguiden === \n\" > $tlog.tvg' \
+#'$tvggrabber $xmldir/tvg 2>> $tlog.tvg' \
+#'echo -e \"\n\n === Ahot === \n\" > $tlog.ahot' \
+#'$ahotgrabber $xmldir/ahot 2>> $tlog.ahot' \
+#'echo -e \"\n\n === Jubii === \n\" > $tlog.jub' \
+#'$jubgrabber $xmldir/jub 2>> $tlog.jub' \
+#'echo -e \"\n\n === Ontv === \n\" > $tlog.ontv' \
+#'$ontvgrabber $xmldir/ontv 2>> $tlog.ontv'"
+
+cat $tlog.tdc >> $tlog
+cat $tlog.tv2 >> $tlog
+cat $tlog.tvg >> $tlog
+cat $tlog.ahot >> $tlog
+cat $tlog.jub >> $tlog
+cat $tlog.ontv >> $tlog
+
+
+
+echo -e "\n\n\n\n =============== Splitter =============== \n" >> $tlog
+
+echo -e "\n\n === TV2 === \n" >> $tlog
+su thomas -c "nice $splittitle $xmldir/tv2 > $xmldir/tv2_split"
+
+
+
+echo -e "\n\n\n\n =============== Channelid =============== \n" >> $tlog
+
+echo -e "\n\n === TDC === \n" >> $tlog
+su thomas -c "nice $channelid $tdcid $xmldir/tdc $xmldir/tdc_id 2>> $tlog"
+echo -e "\n\n === TV2 === \n" >> $tlog
+su thomas -c "nice $channelid $tv2id $xmldir/tv2_split $xmldir/tv2_id 2>> $tlog"
+echo -e "\n\n === Tvguiden === \n" >> $tlog
+su thomas -c "nice $channelid $tvgid $xmldir/tvg $xmldir/tvg_id 2>> $tlog"
+echo -e "\n\n === Ahot === \n" >> $tlog
+su thomas -c "nice $channelid $ahotid $xmldir/ahot $xmldir/ahot_id 2>> $tlog"
+echo -e "\n\n === Jubii === \n" >> $tlog
+su thomas -c "nice $channelid $jubid /$xmldir/jub $xmldir/jub_id 2>> $tlog"
+echo -e "\n\n === Ontv === \n" >> $tlog
+su thomas -c "nice $channelid $ontvid /$xmldir/ontv $xmldir/ontv_id 2>> $tlog"
+
+
+
+echo -e "\n\n\n\n =============== Merger =============== \n" >> $tlog
+
+echo -e "\n\n === Jub/Tdc === \n" >> $tlog
+su thomas -c "nice $merger $xmldir/jub_id $xmldir/tdc_id $xmldir/jubtdc 2>> $tlog"
+echo -e "\n\n === Ahot === \n" >> $tlog
+su thomas -c "nice $merger $xmldir/jubtdc $xmldir/ahot_id $xmldir/jubtdcahot 2>> $tlog"
+echo -e "\n\n === Tvguiden === \n" >> $tlog
+su thomas -c "nice $merger $xmldir/jubtdcahot $xmldir/tvg_id $xmldir/jubtdcahottvg 2>> $tlog"
+echo -e "\n\n === Ontv === \n" >> $tlog
+su thomas -c "nice $merger $xmldir/jubtdcahottvg $xmldir/ontv_id $xmldir/jubtdcahottvgontv 2>> $tlog"
+echo -e "\n\n === TV2 === \n" >> $tlog
+su thomas -c "nice $merger $xmldir/jubtdcahottvgontv $xmldir/tv2_id $xmldir/all 2>> $tlog"
+
+
+
+echo -e "\n\n\n\n =============== Timefix =============== \n" >> $tlog
+
+su thomas -c "nice $timefix $xmldir/all $xmldir/all_time 2>> $tlog"
+
+
+
+echo -e "\n\n\n\n =============== Analyze =============== \n" >> $tlog
+
+su thomas -c "nice $analyze $xmldir/jub $xmldir/tdc $xmldir/ahot $xmldir/tvg $xmldir/ontv $xmldir/tv2_id \
+$xmldir/jubtdc $xmldir/jubtdcahot $xmldir/jubtdcahottvg $xmldir/jubtdcahottvgontv $xmldir/all >> $tlog 2> $tlog.2"
+cat $tlog.2 >> $tlog
+
+
+
+echo -e "\n\n\n\n =============== Fylder =============== \n" >> $tlog
+
+if [[ ! -f $xmldir/all_time ]]; then
+    echo "'all_time' findes ikke. Afslutter\n" >> $tlog
+    while read line; do echo $date" $line"; done < $tlog >> $log
+    exit
+fi
+
+su thomas -c "nice $fill $xmldir/all_time > $tlog.1 2>> $tlog.2"
+cat $tlog.2 |egrep -i "Updated programs|conflict|warn|error|fail|denied|reject|oops|saved|Ignoring" >> $tlog
+echo -e "\n\n" >> $tlog
+while read line; do echo $date" $line"; done < $tlog >> $log
+cat $tlog.1 |egrep -i "warn|error|fail|denied|reject|oops|Ignoring" >> $log

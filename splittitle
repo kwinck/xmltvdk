@@ -1,0 +1,3 @@
+#!/bin/sed -f
+s/<title>\([^\:]*\)\: \(.*\)<./<title>\1<\/title><sub-title>\2<\/sub-/
+s/<title lang="da">\([^\:]*\)\: \(.*\)<./<title lang="da">\1<\/title><sub-title lang="da">\2<\/sub-/
