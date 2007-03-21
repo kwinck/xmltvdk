@@ -920,7 +920,8 @@ class TDCGrabber(BaseTVGrabber):
 						if programme == []:
 							self.newSession(day)
 							programme = self.retrieveDayProgramme(channel, channelPackageIdx, channelIdx, day)
-						self.programme[channel] += programme
+						if programme:
+							self.programme[channel] += programme
 		self.cleanDuplicates()
 	
 	def getAllProgramme (self):
