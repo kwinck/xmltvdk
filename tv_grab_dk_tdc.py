@@ -28,6 +28,8 @@
 
 # Changelog
 #
+# 2007-03-21: This changelog is stopped, since it is now under subversion control.
+#
 # 2007-01-02: Version 0.98
 # 	- Output is set to utf-8 unless it is to concole or forced by option
 # 	- Find the users home with os.path.expanduser() - Should be more portable
@@ -364,7 +366,7 @@ class TDCGrabber(BaseTVGrabber):
 		
 		self.progname = u'tv_grab_dk_tdc'
 		self.version = u'0.99'
-		self.description = u'Denmark (tdckabeltv.dk)'
+		self.description = u'Denmark (tvguide.tdconline.dk)'
 		self.capabilities = ['baseline', 'manualconfig']
 		self.defaultConfigFile = self.xmltvDir + '/tv_grab_dk_tdc.conf'
 		self.configFile = self.defaultConfigFile
@@ -993,7 +995,7 @@ class TDCGrabber(BaseTVGrabber):
 		self.writeXMLLine(file, u'<?xml version="1.0" encoding="'+self.outputEncoding+'"?>', 0)
 		self.writeXMLLine(file, u'<!DOCTYPE tv SYSTEM "xmltv.dtd">', 0)
 		
-		self.writeXMLLine(file, u'<tv source-info-url="http://ktvport.tdc.dk/ktvTVGuide/tvguide.portal"  generator-info-name="'+self.progname+u'/'+self.version+u'">',  0)
+		self.writeXMLLine(file, u'<tv source-info-url="http://tvguide.tdconline.dk"  generator-info-name="'+self.progname+u'/'+self.version+u'">',  0)
 		
 		self.writeXMLLine(file, u'', 0)
 		self.writeXMLChannels (file, 1)
