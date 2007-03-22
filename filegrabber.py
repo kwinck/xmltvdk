@@ -3,7 +3,7 @@
 
 #Tilføj flere filer, om nødvendigt
 filer = ("tv_grab_dk_ahot.py", "tv_grab_dk_jubii", "tv_grab_dk_ontv",
-"tv_grab_dk_tdckabeltv", "tv_grab_dk_tvguiden.py", "analyzeformater.py",
+"tv_grab_dk_tdc.py", "tv_grab_dk_tvguiden.py", "analyzeformater.py",
 "channelid.py", "channelidparsefiler.zip", "timefix.py", "tv_grab_dk_ahot.py",
 "tv_grab_dk_jubii.py", "tv_grab_dk_ontv.py", "tv_grab_dk_tdckabeltv",
 "tv_grab_dk_tvguiden.py", "xmltvanalyzer.py", "xmltvmerger.py", "splittitle.py",
