@@ -5,7 +5,10 @@
 
 import sys, time
 
-timedif = time.timezone/3600
+if time.daylight!=0:
+    timedif = time.altzone/3600
+else:
+    timedif = time.timezone/3600
 timezone = '%+.2d00' % -timedif
 
 try: data = open(sys.argv[1]).read()
