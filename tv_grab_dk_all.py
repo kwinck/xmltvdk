@@ -4,7 +4,7 @@
 import os
 
 #Rækkefølge grabbere skal merges
-mergeorder = ("jubii","tv2","tdc","ahot","tvguiden","ontv")
+mergeorder = ("tdc","jubii","dr","tv2","ahot","ontv","swedb")
 
 #Standard configfil placering
 os.environ["HOME"] = os.path.expanduser("~")
@@ -28,23 +28,26 @@ grabberNames = {
     "tv_grab_dk_ontv.py":"ontv",
     "tv_grab_dk_jubii.py":"jubii",
     "tv_grab_dk_tvguiden.py":"tvguiden",
+    "tv_grab_dk_dr":"dr",
     "tv_grab_se_swedb":"swedb"
 }
 
 #Hvilke programmer grabbere skal køres med
 interpreters = {
     "tv2":"perl",
+    "dr":"perl",
     "tdc":"python",
     "ahot":"python",
     "ontv":"python",
     "jubii":"python",
     "tvguiden":"python",
     "swedb":"perl"
-}
+} 
 
 #Om grabberen skal have splittitle kørt
 needSplittitle = {
     "tv2":True,
+    "dr":True,
     "tdc":True
 }
 
@@ -55,6 +58,7 @@ needSplittitle = {
 #Grabberen skal i det tilf�lde konfigureres s�rskilt.
 configFiles = {
     "tv2":"tv_grab_dk.conf",
+    "dr":"tv_grab_dk_dr.conf",
     "ahot":"tv_grab_dk_ahot.conf",
     "ontv":"tv_grab_dk_ontv.conf",
     "jubii":"tv_grab_dk_jubii.conf",
@@ -68,12 +72,14 @@ extraConfigLines = {
 
 #Særlige funktioner til oversættelse af parsefil -> configfil
 configAdaptors = {
-    "tv2": lambda t, a: "channel %s %s" % (t[:3], a)
+    "tv2": lambda t, a: "channel %s %s" % (t[:3], a),
+    "dr": lambda t, a: "channel %s %s" % (t[:3], a)
 }
 
 #Om grabberen bruger "id name" eller bare "id"
 needName = {
     "tv2":True,
+    "dr":True,
     "ontv":True,
     "tvguiden":True
 }
@@ -127,6 +133,15 @@ if not os.path.isfile(grabbers["tv2"]):
         f.close()
         break
 print "Using tv2 grabber in "+grabbers["tv2"]
+#kigger efter tv_grab_se_dr grabberen:
+swedbpath="/usr/bin/tv_grab_dk_dr"
+if os.name in ("nt", "dos"): 
+    swedbpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_dk_dr"
+if os.path.isfile(swedbpath):
+    grabbers["dr"]=swedbpath
+    print "Using DR grabber in "+grabbers["dr"]
+else:
+    sys.stderr.write("Kan ikke finde tv_grab_dk_dr grabberen. Fortsaetter uden.")
 #kigger efter tv_grab_se_swedb grabberen:
 swedbpath="/usr/bin/tv_grab_se_swedb"
 if os.name in ("nt", "dos"): 
