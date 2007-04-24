@@ -4,7 +4,7 @@
 import os
 
 #Rækkefølge grabbere skal merges
-mergeorder = ("tdc","jubii","dr","tv2","ahot","ontv","swedb")
+mergeorder = ("jubii","dr","tv2","tdc","ahot","tvguiden","ontv")
 
 #Standard configfil placering
 os.environ["HOME"] = os.path.expanduser("~")
