@@ -113,7 +113,10 @@ def parseTime (s):
     '''Oversætter fra xmltv's tidsformat til unixtimestamp'''
     s = s.split()[0]
     # Fixme: Hvis en grabber udnytter sig af dtd'ens mulighed for f.eks. kun at specificere %Y%m, vil strptime kommer med fejl. Det er der ingen af dem, der gør.
-    return time.mktime(time.strptime(s,"%Y%m%d%H%M%S")) 
+    if len(s)==12:
+        return time.mktime(time.strptime(s,"%Y%m%d%H%M")) 
+    else:
+        return time.mktime(time.strptime(s,"%Y%m%d%H%M%S")) 
 
 def notime (programme):
     '''Tester om et program starter tidligere eller samtidigt med, at det slutter'''
