@@ -265,6 +265,20 @@ for channel, f1progs in file1Programmes.iteritems():
         #best("category", max)
         #best("title", min)
         #best("sub-title", min)
+        #Gem sidste sluttidspunktså vi senere kan kopiere programmer fra prog2 til prog1, 
+        #som starter efter sidste program i prog1
+        if f1prog.attributes.has_key("stop"):
+            slut1=parseTime(f1prog.attributes["stop"].value)
+        else:
+            slut1=t1
+    #Kopier programmer fra file2 til file1, som starter efter sidste program i file1:
+    while 1:
+        i += 1
+        if i >= len(f2progs): break
+        f2prog = f2progs[i]
+        t2 = parseTime(f2prog.attributes["start"].value)
+        if t2>=slut1:
+            file1.documentElement.appendChild(f2prog)
 
 from codecs import open
 outfile = open(sys.argv[3], "w", "utf-8")
