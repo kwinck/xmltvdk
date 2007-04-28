@@ -68,23 +68,43 @@ def getFileProgrammes (file):
 # ---------- ---------- Merger <programme> tags  ---------- ---------- #
 
 file1Programmes = getFileProgrammes(file1)
-
+channels=0
+programmes=0
+movedTitles=0
+newSubtitles=0
 #Checker programmer
 for channel, f1progs in file1Programmes.iteritems():
     print "Channel: ", channel
+    channels+=1
     for f1prog in f1progs:
-        #Overføring af manglende tags + overføring af tags med flest childnodes
+        programmes+=1
         file1tagnames = tagdir(f1prog.childNodes)
         if file1tagnames.has_key("title") and file1tagnames.has_key("titleda"):
+            #Udsendelse har både <title> og <title lang="da">: Flyt <title lang="da"> bagerst
             titleDaNode=file1tagnames["titleda"]
             f1prog.removeChild(titleDaNode)
-            if file1tagnames.has_key("sub-title") or file1tagnames.has_key("sub-titleda"):
-                f1prog.appendChild(titleDaNode)
-            else:
-                titleDaNode.tagName="sub-title"
-                f1prog.appendChild(titleDaNode)
+            movedTitles+=1
+            if not file1tagnames.has_key("sub-title") and not file1tagnames.has_key("sub-titleda"):
+                #Hovsa der er ingen sub-title, så vi kan jo lave den danske titel om til sub-title, så vi kan se begge:
+                #Men så bør de også være forskellige:
+                titleText=""
+                titleNode=file1tagnames["title"]
+                if titleNode.hasChildNodes():
+                    titleText=titleNode.firstChild.nodeValue
+                titleDaText=""
+                if titleDaNode.hasChildNodes():
+                    titleDaText=titleDaNode.firstChild.nodeValue
+                if titleDaText!=titleText:
+                    #De var sørme forskellige:
+                    titleDaNode.tagName="sub-title"
+                    newSubtitles+=1
+            f1prog.appendChild(titleDaNode)
         
 from codecs import open
 outfile = open(sys.argv[2], "w", "utf-8")
 outfile.write(file1.toxml())
 outfile.close()
+print "Kanaler:     ",channels
+print "Udsendelser: ", programmes
+print "Udsendelser med dobbelte titler: ", movedTitles
+print "Udsendelser med nye sub-titles:  ", newSubtitles
