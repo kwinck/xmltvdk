@@ -81,6 +81,7 @@ for channel, f1progs in file1Programmes.iteritems():
             if file1tagnames.has_key("sub-title") or file1tagnames.has_key("sub-titleda"):
                 f1prog.appendChild(titleDaNode)
             else:
+                titleDaNode.tagName="sub-title"
                 f1prog.appendChild(titleDaNode)
         
 from codecs import open
