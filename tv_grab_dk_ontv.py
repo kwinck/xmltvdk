@@ -420,7 +420,7 @@ for id, channel in chosenChannels:
     if iconurl: print "<icon src=\"%s\"/>" % iconurl
     print "</channel>"
     
-    for day in range(8): #Går helt op til range(15)!!! (Vildt)
+    for day in range(15): #Går helt op til range(15)!!! (Vildt)
         sys.stderr.write(" %d" % day)
         for programme in getDayProgs(id, day):
             if not programme: continue
