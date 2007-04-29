@@ -14,12 +14,16 @@ rows = []
 files = []
 filenames = []
 pretty = False
+wiki=False
 debug = "--debug" in sys.argv
 
 sys.stdout.write("Analyzing: ")
 for arg in sys.argv[1:]:
     if arg == "--pretty":
         pretty = True
+        continue
+    if arg == "--wiki":
+        wiki=True
         continue
     try: files.append(analyze(arg, debug))
     except: continue
@@ -92,6 +96,22 @@ if pretty:
         for cell, i in il(row, range(len(row))):
             sys.stdout.write(cell.ljust(widths[i]+1))
         print
+elif wiki:
+    def il(*lists):
+        length = 0
+        for l in lists:
+            length = max(len(l), length)
+        for i in xrange(length):
+            data = []
+            for l in lists:
+                if len(l) > i:
+                    data.append(l[i])
+                else: data.append(None)
+            yield data
+    for row in rows:
+        for cell, i in il(row, range(len(row))):
+            print "|",cell
+        print "|-"
 else:
     for row in rows:
         print " ".join(row)
