@@ -16,7 +16,11 @@ def readUrl (url):
     for i in range (retries):
         try:
             data = urlopen(url).read()
-            if data.find("<title>Jubii - 404</title>") >= 0:
+            if data.find(">Jubii - 404</title>") >= 0:
+                sys.stderr.write("jubii-http-problem: 404-error. Retrying...\n")
+                continue
+            if data.find(">Runtime Error</title>") >= 0:
+                sys.stderr.write("jubii-http-problem: Runtime-error. Retrying...\n")
                 continue
             return data
         except: pass
