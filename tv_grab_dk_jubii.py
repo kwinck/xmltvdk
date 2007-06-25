@@ -249,6 +249,10 @@ def parseProgramme (programme):
         parseSubtitle(programmeDic["descda"], programmeDic)
         del programmeDic["descda"]
     
+    start = data.find("<span id=\"ProgramShowView\">")+27
+    end = data.find("</span>", start)
+    programmeDic["showview"] = data[start:end]
+
     return programmeDic
 
 # ---------- Parse ---------- #
@@ -296,8 +300,8 @@ for channel in chosenProgrammes.keys():
         
         pDic = parseProgramme(programme)
         
-        print "<programme channel=\"%s\" start=\"%s\" stop=\"%s\">" % \
-            (pDic["kanal"], pDic["start"], pDic["slut"])
+        print "<programme channel=\"%s\" start=\"%s\" stop=\"%s\" showview=\"%s\">" % \
+            (pDic["kanal"], pDic["start"], pDic["slut"], pDic["showview"])
     
         for key, value in keyDic.iteritems():
             if pDic.has_key(key):

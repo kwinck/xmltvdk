@@ -212,6 +212,11 @@ for channel, f1progs in file1Programmes.iteritems():
                f2prog.attributes.has_key("stop"):
             f1prog.attributes["stop"] = f2prog.attributes["stop"]
         
+        #Overførning af showview
+        if not f1prog.attributes.has_key("showview") and \
+               f2prog.attributes.has_key("showview"):
+            f1prog.attributes["showview"] = f2prog.attributes["showview"]
+        
         #Overføring af manglende tags + overføring af tags med flest childnodes
         file1tagnames = tagdir(f1prog.childNodes)
         file2tagnames = tagdir(f2prog.childNodes)
