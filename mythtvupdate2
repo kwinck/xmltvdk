@@ -1,4 +1,5 @@
 #!/bin/sh
+# $Id$
 
 export xmldir="/home/thomas/.xmltv/data"
 export tlog="/home/thomas/.mythlog"

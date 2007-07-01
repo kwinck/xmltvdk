@@ -157,3 +157,5 @@ mens Python-grabberne gemmer dem under ~\.xmltv - gerne: C:\Documents and Settin
 
 Filen bladerunnerpro.rar i gruppens filsektion indeholder filer og vejledning (se readme.txt i arkivet).
 Hvis du har problemer med at pakke filarkivet ud, så brug evt http://7-zip.org.
+
+# $Id$

@@ -1,5 +1,7 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
+#
+# $Id$
 
 # Køres f.eks. som:
 # python runall.py \

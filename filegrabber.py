@@ -1,5 +1,7 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
+#
+# $Id$
 
 #Tilføj flere filer, om nødvendigt
 filer = ("tv_grab_dk_ahot.py", "tv_grab_dk_jubii", "tv_grab_dk_ontv",

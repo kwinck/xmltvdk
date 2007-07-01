@@ -66,3 +66,5 @@ jubiitv2tdcahottvguidenontv_time.
 **** Bemærk at tv_grab_dk_all.py ikke automatisk opdaterer sig selv og
 filegrabber.py. Skal disse filer opdateres, må du enten selv køre
 filegrabber.py eller hente filerne i gruppen.
+
+# $Id$

@@ -3,6 +3,8 @@
 eval 'exec /usr/bin/perl -w -S $0 ${1+"$@"}'
     if 0; # not running under some shell
 
+# $Id$
+
 =pod
 
 =head1 NAME
@@ -86,7 +88,7 @@ Things in the programme descriptions to handle:
 # initializations
 
 use strict;
-use XMLTV::Version '$Id: tv_grab_dk_dr,v 1.00 2006/12/26 23:18:16 fgouget Exp $ ';
+use XMLTV::Version '$Id$ ';
 use XMLTV::Capabilities qw/baseline manualconfig cache/;
 use XMLTV::Description 'Denmark';
 use Getopt::Long;

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
+#
+# $Id$
 
 from urllib import urlopen
 import sys, time

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+#
+# $Id$
 
 """Køres med ./channelid.py nøglefil indfil udfil"""
 

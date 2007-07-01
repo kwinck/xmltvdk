@@ -1,5 +1,7 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
+#
+# $Id$
 
 # ---------- Lav kanal liste ---------- #
 import sys

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
+#
+# $Id$
 
 
 # Copyright by Jesper Saxtorph <sax.xmltv@manware.dk>

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+#
+# $Id$
 
 """Køres med ./xmltvmeger.py indfil1 indfil2 udfil
 Filterne bør have samme kanaler og kanal id'er"""
