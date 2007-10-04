@@ -454,7 +454,7 @@ class TDCGrabber(BaseTVGrabber):
 	def newSession(self, day=None):
 		cj = cookielib.CookieJar()
 		self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
-		url = 'http://ktvport.tdc.dk/ktvTVGuide/tvguide.portal'
+		url = 'http://portal.yousee.dk/ktvTVGuide/tvguide.portal'
 		data = self.getWebPage(url, 10)
 		self.setViewMode()
 		self.relativeDay = -100
@@ -462,14 +462,14 @@ class TDCGrabber(BaseTVGrabber):
 			self.setDay(day)
 	
 	def setViewMode (self):
-		url = 'http://ktvport.tdc.dk:80/ktvTVGuide/tvguide.portal?_nfpb=true&tvguideimageNavigation_portlet_1_actionOverride=%2Fportlets%2Ftvguide%2FimageNavigation%2FselectViewAction&tvguideimageNavigation_portlet_1%7BactionForm.currentPresentationType%7D=horz'
+		url = 'http://portal.yousee.dk:80/ktvTVGuide/tvguide.portal?_nfpb=true&tvguideimageNavigation_portlet_1_actionOverride=%2Fportlets%2Ftvguide%2FimageNavigation%2FselectViewAction&tvguideimageNavigation_portlet_1%7BactionForm.currentPresentationType%7D=horz'
 		data = self.getWebPage(url, 10)
 		return data != None
 
 	def setDay (self, day):
 		if day != self.relativeDay:
 			self.relativeDay = day
-			url = 'http://ktvport.tdc.dk:80/ktvTVGuide/tvguide.portal?_nfpb=true&tvguideimageNavigation_portlet_1_actionOverride=%2Fportlets%2Ftvguide%2FimageNavigation%2FselectTimeAction&tvguideimageNavigation_portlet_1wlw-select_key:%7BactionForm.chosenTimeSpanOption%7D=' + str(day)
+			url = 'http://portal.yousee.dk:80/ktvTVGuide/tvguide.portal?_nfpb=true&tvguideimageNavigation_portlet_1_actionOverride=%2Fportlets%2Ftvguide%2FimageNavigation%2FselectTimeAction&tvguideimageNavigation_portlet_1wlw-select_key:%7BactionForm.chosenTimeSpanOption%7D=' + str(day)
 			data = self.getWebPage(url, 10)
 			if not data:
 				return False
@@ -538,7 +538,7 @@ class TDCGrabber(BaseTVGrabber):
 		channelPackages = []
 		
 		if not self.quiet: sys.stderr.write("Retrieving channel packages\n")
-		url = 'http://ktvport.tdc.dk/ktvTVGuide/tvguide.portal'
+		url = 'http://portal.yousee.dk/ktvTVGuide/tvguide.portal'
 		data = self.getWebPage(url, 10)
 		if data:
 			channelPackages = self.extractChannelPackages(data)
@@ -547,7 +547,7 @@ class TDCGrabber(BaseTVGrabber):
 			sys.stderr.write("Could not load page\n")
 		
 		for channelgroup in channelPackages:
-			url = 'http://ktvport.tdc.dk:80/ktvTVGuide/tvguide.portal?_nfpb=true&tvguidemenu_portlet_1_actionOverride=%2Fportlets%2Ftvguide%2Fmenu%2FselectChannelGroupAction&tvguidemenu_portlet_1%7BactionForm.channelPackageIdx%7D=' + channelgroup
+			url = 'http://portal.yousee.dk:80/ktvTVGuide/tvguide.portal?_nfpb=true&tvguidemenu_portlet_1_actionOverride=%2Fportlets%2Ftvguide%2Fmenu%2FselectChannelGroupAction&tvguidemenu_portlet_1%7BactionForm.channelPackageIdx%7D=' + channelgroup
 			data = self.getWebPage(url, 10)
 			if data:
 				if not self.quiet: sys.stderr.write("Retrieving channels for package %s\n" % channelgroup)
@@ -661,7 +661,7 @@ class TDCGrabber(BaseTVGrabber):
 		# Set the day we want a programme for
 		self.setDay(day)
 		# fetch the page with the base programme (no details
-		url = 'http://ktvport.tdc.dk:80/ktvTVGuide/tvguide.portal?_nfpb=true&tvguidemenu_portlet_1_actionOverride=%2Fportlets%2Ftvguide%2Fmenu%2FselectChannelAction&tvguidemenu_portlet_1%7BactionForm.channel%7D='+self.cleanForURL(channel)+'&tvguidemenu_portlet_1%7BactionForm.channelPackageIdx%7D='+channelPackageIdx+'&tvguidemenu_portlet_1%7BactionForm.channelIdx%7D='+channelIdx
+		url = 'http://portal.yousee.dk:80/ktvTVGuide/tvguide.portal?_nfpb=true&tvguidemenu_portlet_1_actionOverride=%2Fportlets%2Ftvguide%2Fmenu%2FselectChannelAction&tvguidemenu_portlet_1%7BactionForm.channel%7D='+self.cleanForURL(channel)+'&tvguidemenu_portlet_1%7BactionForm.channelPackageIdx%7D='+channelPackageIdx+'&tvguidemenu_portlet_1%7BactionForm.channelIdx%7D='+channelIdx
 		data = self.getWebPage(url, 10)
 		if data:
 			# Check the week day and thereby set the date
@@ -774,7 +774,7 @@ class TDCGrabber(BaseTVGrabber):
 	
 	def retrieveProgrammeDetails (self, prog):
 		programmeDetails = None
-		url = 'http://ktvport.tdc.dk:80/ktvTVGuide/tvguide.portal?_nfpb=true&tvguideresultPresentation_portlet_1_actionOverride=%2Fportlets%2Ftvguide%2FresultPresentation%2FselectShowDetails&tvguideresultPresentation_portlet_1%7BactionForm.udsendelsesId%7D='+prog[self.infoMap['id']]
+		url = 'http://portal.yousee.dk:80/ktvTVGuide/tvguide.portal?_nfpb=true&tvguideresultPresentation_portlet_1_actionOverride=%2Fportlets%2Ftvguide%2FresultPresentation%2FselectShowDetails&tvguideresultPresentation_portlet_1%7BactionForm.udsendelsesId%7D='+prog[self.infoMap['id']]
 		data = self.getWebPage(url, 3)
 		if data:
 			programmeDetails = self.extractProgrammeDetails (data, prog[self.infoMap['id']])
@@ -997,7 +997,7 @@ class TDCGrabber(BaseTVGrabber):
 		self.writeXMLLine(file, u'<?xml version="1.0" encoding="'+self.outputEncoding+'"?>', 0)
 		self.writeXMLLine(file, u'<!DOCTYPE tv SYSTEM "xmltv.dtd">', 0)
 		
-		self.writeXMLLine(file, u'<tv source-info-url="http://tvguide.tdconline.dk"  generator-info-name="'+self.progname+u'/'+self.version+u'">',  0)
+		self.writeXMLLine(file, u'<tv source-info-url="http://yousee.dk/privat/"  generator-info-name="'+self.progname+u'/'+self.version+u'">',  0)
 		
 		self.writeXMLLine(file, u'', 0)
 		self.writeXMLChannels (file, 1)
