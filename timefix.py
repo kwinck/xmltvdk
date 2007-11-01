@@ -7,7 +7,7 @@
 
 import sys, time
 
-if time.daylight!=0:
+if time.localtime()[-1]!=0:
     timedif = time.altzone/3600
 else:
     timedif = time.timezone/3600
