@@ -69,6 +69,7 @@ L<xmltv(5)>.
 
 =head1 AUTHOR
 
+Søren Pingel Dalsgaard (soren@dalsgaards.dk). Based on the tv2 grabber by
 Jesper Skov (jskov@zoftcorp.dk). Originally based on tv_grab_nl by
 Guido Diepen and Ed Avis (ed@membled.com) and tv_grab_fi by Matti
 Airas.
@@ -245,16 +246,16 @@ if ($mode eq 'configure') {
     my @qs = map { "add channel $_?" } @names;
     my @want = ask_many_boolean(1, @qs);
     foreach (@chs) {
-	my $w = shift @want;
-	warn("cannot read input, stopping channel questions"), last
-	  if not defined $w;
-	# No need to print to user - XMLTV::Ask is verbose enough.
+		my $w = shift @want;
+		warn("cannot read input, stopping channel questions"), last
+			if not defined $w;
+		# No need to print to user - XMLTV::Ask is verbose enough.
 
-	# Print a config line, but comment it out if channel not wanted.
-	print CONF '#' if not $w;
-	my $name = shift @names;
+		# Print a config line, but comment it out if channel not wanted.
+		print CONF '#' if not $w;
+		my $name = shift @names;
         print CONF "channel $_ $name\n";
-	# TODO don't store display-name in config file.
+		# TODO don't store display-name in config file.
     }
     
     close CONF or warn "cannot close $config_file: $!";
@@ -298,14 +299,14 @@ if ($opt_list_channels) {
     update $bar if not $opt_quiet;
 
     foreach my $ch_did (sort(keys %channels)) {
-	my $ch_name = $channels{$ch_did};
-	my $ch_xid = "$ch_did.dr.dk";
-	$writer->write_channel({ id => $ch_xid,
+		my $ch_name = $channels{$ch_did};
+		my $ch_xid = "$ch_did.dr.dk";
+		$writer->write_channel({ id => $ch_xid,
 				 'display-name' => [ [ $ch_name ] ],
 				 'icon' => [{'src' => get_icon($ch_did)}]
 				});
-    }
-    $bar->finish() if not $opt_quiet;
+	}
+	$bar->finish() if not $opt_quiet;
     $writer->end();
     exit();
 }
@@ -322,13 +323,13 @@ foreach (@config_lines) {
     # config file only gives the XMLTV ids that are interesting.
     #
     if (/^channel:?\s+(\S+)\s+([^\#]+)/) {
-	$ch_did = $1;
-	$ch_name = $2;
-	$ch_name =~ s/\s*$//;
-	push @channels, $ch_did;
-	$channels{$ch_did} = $ch_name;
+		$ch_did = $1;
+		$ch_name = $2;
+		$ch_name =~ s/\s*$//;
+		push @channels, $ch_did;
+		$channels{$ch_did} = $ch_name;
     } else {
-	warn "$config_file:$.: bad line\n";
+		warn "$config_file:$.: bad line\n";
     }
 }
 
@@ -360,12 +361,12 @@ foreach $ch_did (@channels) {
 				 'icon' => [{'src' => get_icon($ch_did)}]
 				 });
     for (my $i = $opt_offset;$i<($opt_offset + $opt_days);$i++) {
-	# Request day when constructing URL since it is represented as
-	# an integere offset from today. Still pass in the computed
-	# date - may need it sometime...
-	my $day = UnixDate(DateCalc($today, "+ $i days"), '%Y-%m-%d');
-	t "turned offset $i (from $today) into date $day";
-	push @to_get, [ $i, $day, $ch_xid, $ch_did ];
+		# Request day when constructing URL since it is represented as
+		# an integere offset from today. Still pass in the computed
+		# date - may need it sometime...
+		my $day = UnixDate(DateCalc($today, "+ $i days"), '%Y-%m-%d');
+		t "turned offset $i (from $today) into date $day";
+		push @to_get, [ $i, $day, $ch_xid, $ch_did ];
     }
 }
 
@@ -412,7 +413,7 @@ sub process_listings_page ( $$$$$ ){
 	# We make an HTML::TreeBuilder object, get the information
 	# from it and them delete it.
 	my $t = get_tree("http://www.dr.dk/tjenester/programoversigten/w3c/inc/channel.aframe?channel=".$drchan."&seldate=".($drdate+$dayOffset)."&seltime=0");
-	
+
     my @elems = $t->look_down(_tag => 'td');
 
     if (not @elems) {
@@ -481,212 +482,213 @@ sub process_listings_page ( $$$$$ ){
 
     my @info;
     for (my $i = 0; $i <= $#prog_list; $i++) {
-	my ($start, $stop, # exactly one
-	    $title, $sub_title, $genre, $date,               #
-	    $episode_num, $actors, $writers, $commentators, #
-	    $director, $previously_shown, $orig_title,      # at most one
-	    $aspect, $colour, $stereo, $texted,
-	    @presenter, @url # zero or more
-	    );
+		my ($start, $stop, # exactly one
+			$title, $sub_title, $genre, $date,               #
+			$episode_num, $actors, $writers, $commentators, #
+			$director, $previously_shown, $orig_title,      # at most one
+			$aspect, $colour, $stereo, $texted,
+			@presenter, @url # zero or more
+			);
 	
-	my $teletext_sub = 0;  # boolean
+		my $teletext_sub = 0;  # boolean
 
-	# defaults
-	$aspect = "4:3";
-	$colour = 1;
+		# defaults
+		$aspect = "4:3";
+		$colour = 1;
 
-	my @prog = @{$prog_list[$i]};
+		my @prog = @{$prog_list[$i]};
 
-	my $eur_date = "$day " . $prog[0];
-	$start = parse_local_date($eur_date, $TZ);
+		my $eur_date = "$day " . $prog[0];
+		$start = parse_local_date($eur_date, $TZ);
 
-	# When looking for the end time, we may also have to bump $day
-	# to the next day
-	if ($i+1 <= $#prog_list) {
-	    my @next_prog = @{$prog_list[$i+1]};
-	    $stop = parse_local_date("$day " . $next_prog[0], $TZ);
-	    if (0 < Date_Cmp($start, $stop)) {
-		my $err;
-		$day = nextday($day);
-		$stop = parse_local_date("$day " . $next_prog[0], $TZ);
-	    }
-	    if (Date_Cmp($start, $stop) == 0) {
-		warn "zero minutes programme, skipping (".$prog[1].")\n";
-		next;
-	    }
-	}
-	# If the stop time is not set, it's not set.  We don't guess
-	# some arbitrary value.
-	#
-
-	if (defined $prog[1]) {
-	    $title = $prog[1];
-	    if ($title =~ /^(.*?)\s*\:\s+(.*)$/ || $title =~ /^(.*?)\s+\-\s+(.*)$/) {
-		$title= $1;
-		$sub_title = $2;
-	    }
-	} else {
-	    warn "no title, skipping programme\n";
-	    next;
-	}
-
-	my @desc; # bits of description
-	for (my $line = 2; $line <= $#prog; $line++) {
-	    $_ = $prog[$line];
-#	    if (s/Vises i 16:9 format.|Vises i bredformat.//) {
-#		$aspect = "16:9";
-#	    }
-
-	    # Description contains more than just textual blurb.
-	    if (/^Genre:\s*(.*)/) {
-		$genre = $1;
-		if ($genre =~ /(.*)\s+fra (\d\d\d\d)(.*)/) {
-		    $genre = $1 . $3;
-		    $date = $2;
-		}
-		# Genre is also sometimes part of the title!
-		$_ = $genre;
-	    } elsif (/^Manuskript:\s*(.*)/) {
-		my @w = split(/, | og /, $1);
-		s/[.]$// foreach @w;
-		push @$writers, @w;
-		next;
-	    } elsif (/^Instruktør:\s*(.*)/) {
-		$director = $1;
-		$director =~ s/[.]$//;
-		next;
-	    } elsif (/^Originaltitel:\s*(.*)/) {
-		$orig_title = $1;
-		$orig_title =~ s/[.]$//;
-		next;
-	    } elsif (/^Kommentatorer:\s*(.*)/) {
-		push @$commentators, $1;
-		next;
-	    } elsif (/^Medvirkende:\s*(.*)/) {
-		my @a = split(/, | og /, $1);
-		s/[.]$// foreach @a;
-		push @$actors, @a;
-		next;
-	    } elsif (/^Sendt første gang .*/) {
-		$previously_shown = {};
-		next;
-	    } elsif (/^Sendes også .*/) {
-		# do not insert into description
-		next;
-	    }
-
-	    if (/^\(TTV\)$/) {
-		$teletext_sub = 1;
-	    } elsif (/^\(TH\)$/) {
-		$texted = 1;
-	    } elsif (/^\((\d+)\)$/) {
-		$episode_num = $1;
-	    } elsif (/^\(G\)$/) {
-		$previously_shown = {};
-	    } elsif (/^\(S\)$/) {
-		$stereo = {};
-	    } else {
-		if (!defined $episode_num) {
-		    if (/^(.*?)\s+\((\d+)\)\.?\s*(.*)/) {
-			$episode_num = $2;
-			if (!defined $sub_title) {
-			    $sub_title = "$1";
-			    $_ = $3;
-			} else {
-			    $_ = $1.". ".$3;
+		# When looking for the end time, we may also have to bump $day
+		# to the next day
+		if ($i+1 <= $#prog_list) {
+			my @next_prog = @{$prog_list[$i+1]};
+			$stop = parse_local_date("$day " . $next_prog[0], $TZ);
+			if (0 < Date_Cmp($start, $stop)) {
+				my $err;
+				$day = nextday($day);
+				$stop = parse_local_date("$day " . $next_prog[0], $TZ);
 			}
-		    } elsif (/\((\d+)\)/) {
-			$episode_num = $2;
-		    }
+			if (Date_Cmp($start, $stop) == 0) {
+				warn "zero minutes programme, skipping (".$prog[1].")\n" if not $opt_quiet;
+				next;
+			}
 		}
-		push @desc, $_ if length;
-	    }
-	}
-	
-	my @title_data = ([ $title, $LANG]);
-	push @title_data, [ $orig_title ] if defined $orig_title;
-	my ($start_base, $start_tz) = @{date_to_local($start, $TZ)};
+		# If the stop time is not set, it's not set.  We don't guess
+		# some arbitrary value.
+		#
 
-	my %prog
-	    = (channel  => $ch_xmltv_id,
-	       title    => \@title_data,
-	       start    => UnixDate($start_base, '%q') . " $start_tz",
-	      );
-	if (defined $stop) {
-	    my ($stop_base, $stop_tz) = @{date_to_local($stop, $TZ)};
-	    $prog{stop} = UnixDate($stop_base, '%q') . " $stop_tz";
-	}
+		if (defined $prog[1]) {
+			$title = $prog[1];
+			if ($title =~ /^(.+)\s*\((\d+)\)$/) {
+				$title = $1;
+				$episode_num = $2;
+			}
+			if ($title =~ /^(.*?)\s*\:\s+(.*)$/ || $title =~ /^(.*?)\s+\-\s+(.*)$/) {
+				$title= $1;
+				$sub_title = $2;
+			}
+		} else {
+			warn "no title, skipping programme\n";
+			next;
+		}
 
-	# Would be better split into paragraphs but the current format
-	# doesn't allow that.
-	#
-	$prog{desc} = [ [ join(' ', @desc), $LANG ] ] if @desc;
+		my @desc; # bits of description
+		for (my $line = 2; $line <= $#prog; $line++) {
+			$_ = $prog[$line];
+#	    	if (s/Vises i 16:9 format.|Vises i bredformat.//) {
+#				$aspect = "16:9";
+#	    	}
+
+			# Description contains more than just textual blurb.
+			if (/^Genre:\s*(.*)/) {
+				$genre = $1;
+				if ($genre =~ /(.*)\s+fra (\d\d\d\d)(.*)/) {
+					$genre = $1 . $3;
+					$date = $2;
+				}
+				# Genre is also sometimes part of the title!
+				$_ = $genre;
+			} elsif (/^Manuskript:\s*(.*)/) {
+				my @w = split(/, | og /, $1);
+				s/[.]$// foreach @w;
+				push @$writers, @w;
+				next;
+			} elsif (/^Instruktør:\s*(.*)/) {
+				$director = $1;
+				$director =~ s/[.]$//;
+				next;
+			} elsif (/^Originaltitel:\s*(.*)/) {
+				$orig_title = $1;
+				$orig_title =~ s/[.]$//;
+				next;
+			} elsif (/^Kommentatorer:\s*(.*)/) {
+				push @$commentators, $1;
+				next;
+			} elsif (/^Medvirkende:\s*(.*)/) {
+				my @a = split(/, | og /, $1);
+				s/[.]$// foreach @a;
+				push @$actors, @a;
+				next;
+			} elsif (/^Sendt første gang .*/) {
+				$previously_shown = {};
+				next;
+			} elsif (/^Sendes også .*/) {
+				# do not insert into description
+				next;
+			}
+
+			if (/^\(TTV\)$/) {
+				$teletext_sub = 1;
+			} elsif (/^\(TH\)$/) {
+				$texted = 1;
+			} elsif (/^\((\d+)\)$/) {
+				$episode_num = $1;
+			} elsif (/^\(G\)$/) {
+				$previously_shown = {};
+			} elsif (/^\(S\)$/) {
+				$stereo = {};
+			} else {
+				if (!defined $episode_num) {
+					if (/^(.*?)\s+\((\d+)\)\.?\s*(.*)/) {
+						$episode_num = $2;
+						if (!defined $sub_title) {
+							$sub_title = "$1";
+							$_ = $3;
+						} else {
+							$_ = $1.". ".$3;
+						}
+					} elsif (/\((\d+)\)/) {
+						$episode_num = $2;
+					}
+				}
+				push @desc, $_ if length;
+			}
+		}
 	
-	$prog{video} = { present => 1,
+		my @title_data = ([ $title, $LANG]);
+		push @title_data, [ $orig_title ] if defined $orig_title;
+		my ($start_base, $start_tz) = @{date_to_local($start, $TZ)};
+
+		my %prog = (channel  => $ch_xmltv_id,
+			        title    => \@title_data,
+	                start    => UnixDate($start_base, '%q') . " $start_tz");
+		if (defined $stop) {
+			my ($stop_base, $stop_tz) = @{date_to_local($stop, $TZ)};
+			$prog{stop} = UnixDate($stop_base, '%q') . " $stop_tz";
+		}
+
+		# Would be better split into paragraphs but the current format
+		# doesn't allow that.
+		#
+		$prog{desc} = [ [ join(' ', @desc), $LANG ] ] if @desc;
+	
+		$prog{video} = { present => 1,
 			 aspect => $aspect,
 			 colour => $colour };
 
-	$prog{audio} = { present => 1,
+		$prog{audio} = { present => 1,
 			 stereo => "stereo" } if defined $stereo;
 
-	if (defined $episode_num) {
-	    if (defined $sub_title) {
-		$sub_title = "$sub_title. Episode $episode_num";
-	    } else {
-		$sub_title = "Episode $episode_num";
-	    }
-	}
+		if (defined $episode_num) {
+			if (defined $sub_title) {
+				$sub_title = "$sub_title. Episode $episode_num";
+			} else {
+				$sub_title = "Episode $episode_num";
+			}
+		}
 
-	$prog{'sub-title'} = [ [ $sub_title, $LANG ] ] if defined $sub_title;
-	$prog{subtitles} = [ { type => 'teletext' } ] if $teletext_sub;
-	$prog{subtitles} = [ { type => 'onscreen' } ] if $texted;
+		$prog{'sub-title'} = [ [ $sub_title, $LANG ] ] if defined $sub_title;
+		$prog{subtitles} = [ { type => 'teletext' } ] if $teletext_sub;
+		$prog{subtitles} = [ { type => 'onscreen' } ] if $texted;
 
-	if (defined $episode_num) {
-#	    $episode_num = $episode_num - 1;
-#	    # We do not get any information about seasons, nor the total
-#	    # amount of episodes. Guess this is better than nothing.
-#	    $prog{'episode-num'} = [ [ " . $episode_num . ", "xmltv_ns" ] ];
-	    $prog{'episode-num'} = [ [ "$episode_num", "onscreen" ] ];
-	}
-	$prog{date} = $date if defined $date;
+		if (defined $episode_num) {
+#	    	$episode_num = $episode_num - 1;
+#	    	# We do not get any information about seasons, nor the total
+#	    	# amount of episodes. Guess this is better than nothing.
+#	    	$prog{'episode-num'} = [ [ " . $episode_num . ", "xmltv_ns" ] ];
+			$prog{'episode-num'} = [ [ "$episode_num", "onscreen" ] ];
+		}
+		$prog{date} = $date if defined $date;
 
-	my @cats = ();
+		my @cats = ();
 # In the current implementation, the $genre is not a real genre, grab it anyway
-	if (defined $genre) {
-	    @cats = ([$genre]);
-	}
-	foreach(keys(%categories)) {
-	    if ( (defined $genre && ($genre =~ /$_/i || $genre =~ /$categories{$_}/i)) ||
-		 ($title =~ /$_/i || $title =~ /$categories{$_}/i) ||
-		 ($categories{$_} =~ /^series$/ && defined $episode_num) ) {
-#		@cats = ([ $categories{$_} ], @cats);
-		push @cats, [ $categories{$_} ];
-	    }
-	}
-	foreach(keys(%movietypes)) {
-	    if ( (defined $genre && ($genre =~ /$_/i || $genre =~ /$movietypes{$_}/i)) ||
-		 ($title =~ /$_/i || $title =~ /$movietypes{$_}/i) ) {
-#		@cats = ([ $movietypes{$_} ], @cats);
-		push @cats, [ $movietypes{$_} ];
-	    }
-	}
-	$prog{'category'} = [ @cats ];
+		if (defined $genre) {
+			@cats = ([$genre]);
+		}
+		foreach(keys(%categories)) {
+			if ((defined $genre && ($genre =~ /$_/i || $genre =~ /$categories{$_}/i)) ||
+				($title =~ /$_/i || $title =~ /$categories{$_}/i) ||
+				($categories{$_} =~ /^series$/ && defined $episode_num)) {
+#			@cats = ([ $categories{$_} ], @cats);
+			push @cats, [ $categories{$_} ];
+			}
+		}
+		foreach(keys(%movietypes)) {
+			if ((defined $genre && ($genre =~ /$_/i || $genre =~ /$movietypes{$_}/i)) ||
+				($title =~ /$_/i || $title =~ /$movietypes{$_}/i)) {
+#				@cats = ([ $movietypes{$_} ], @cats);
+				push @cats, [ $movietypes{$_} ];
+			}
+		}
+		$prog{'category'} = [ @cats ];
 
-	$prog{'previously-shown'} = $previously_shown if $previously_shown;
+		$prog{'previously-shown'} = $previously_shown if $previously_shown;
 	
-	my %c;
+		my %c;
 
-	if ($actors) {
-		s/.*: // foreach @$actors;
-		$c{actor} = $actors;
-	}
-	$c{writer} = $writers if $writers;
-	$c{commentator} = $commentators if $commentators;
-	$c{director} = [ $director ] if $director;
-	$prog{credits} = \%c if %c;
+		if ($actors) {
+			s/.*: // foreach @$actors;
+			$c{actor} = $actors;
+		}
+		$c{writer} = $writers if $writers;
+		$c{commentator} = $commentators if $commentators;
+		$c{director} = [ $director ] if $director;
+		$prog{credits} = \%c if %c;
 
-	$writer->write_programme(\%prog);
-
+		$writer->write_programme(\%prog);
     }
     $t->delete(); undef $t;
 }
@@ -700,20 +702,20 @@ sub get_channels {
     # The channels and their IDs are defined in javascript arrays
     my @elements = $t->look_down("_tag" => "a", "class" => "verysmalltext");
     foreach my $i (@elements) {
-	my $channel_id = $i->attr("onclick");
-	if ($channel_id =~ /channel=(.+?)\'/) {
-	    $channel_id = $1;
+		my $channel_id = $i->attr("onclick");
+		if ($channel_id =~ /channel=(.+?)\'/) {
+			$channel_id = $1;
 
-	    my @children = $i->content_list();
+			my @children = $i->content_list();
 	
-	    if (scalar(@children) != 1 || ref($children[0])) {
-		next;
-	    }
+			if (scalar(@children) != 1 || ref($children[0])) {
+				next;
+			}
 
-	    my $channel_name = $children[0];
+			my $channel_name = $children[0];
 
-	    $channels{$channel_id} = $channel_name if defined $channel_name;
-	}
+			$channels{$channel_id} = $channel_name if defined $channel_name;
+		}
     }
 
     $t->delete(); undef $t;
@@ -724,18 +726,18 @@ sub get_channels {
 my $warned_bad_chars;
 sub tidy( $ ) {
     for (my $tmp = shift) {
-	tr/\222/''/;
-	if (tr/\012\015\040-\176\240-\377//dc) {
-	    warn 'removing bad characters' unless $warned_bad_chars++;
-	}
-	return $_;
+		tr/\222/''/;
+		if (tr/\012\015\040-\176\240-\377//dc) {
+			warn 'removing bad characters' unless ($warned_bad_chars++ || $opt_quiet);
+		}
+		return $_;
     }
 }
 
 require HTML::TreeBuilder;
 sub get_tree( $ ) {
 	my $t = new HTML::TreeBuilder;
-        my $c = get_url(shift);
+	my $c = get_url(shift);
 	$t->parse($c);
 	$t->eof;
 	return $t;
@@ -743,10 +745,10 @@ sub get_tree( $ ) {
 
 my $fetched;
 sub get_url( $ ) {
-  sleep rand(5) if defined $fetched;
-  $fetched = 1;
-  my $c = tidy($ua->get(shift)->content);
-  return $c;
+	sleep rand(5) if defined $fetched;
+	$fetched = 1;
+	my $c = tidy($ua->get(shift)->content);
+	return $c;
 }
 
 # Bump a YYYYMMDD date by one.
