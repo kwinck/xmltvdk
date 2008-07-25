@@ -727,6 +727,7 @@ my $warned_bad_chars;
 sub tidy( $ ) {
     for (my $tmp = shift) {
 		tr/\222/''/;
+		tr/\011/ /; # tabs are allowed - turn them into spaces
 		if (tr/\012\015\040-\176\240-\377//dc) {
 			warn 'removing bad characters' unless ($warned_bad_chars++ || $opt_quiet);
 		}
