@@ -178,23 +178,25 @@ if not '--noupdate' in opts:
 #        break
 #print "Using tv2 grabber in "+grabbers["tv2"]*/
 #kigger efter tv_grab_dk_dr grabberen:
-swedbpath="/usr/bin/tv_grab_dk_dr"
-if os.name in ("nt", "dos"): 
-    swedbpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_dk_dr"
-if os.path.isfile(swedbpath):
-    grabbers["dr"]=swedbpath
-    print "Using DR grabber in "+grabbers["dr"]
-else:
-    sys.stderr.write("Kan ikke finde tv_grab_dk_dr grabberen. Fortsaetter uden.")
+if "dr" in mergeorder: 
+    drpath="/usr/bin/tv_grab_dk_dr"
+    if os.name in ("nt", "dos"): 
+        drpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_dk_dr"
+    if os.path.isfile(swedbpath):
+        grabbers["dr"]=drpath
+        print "Using DR grabber in "+grabbers["dr"]
+    else:
+        sys.stderr.write("Kan ikke finde tv_grab_dk_dr grabberen. Fortsaetter uden.")
 #kigger efter tv_grab_se_swedb grabberen:
-swedbpath="/usr/bin/tv_grab_se_swedb"
-if os.name in ("nt", "dos"): 
-    swedbpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_se_swedb"
-if os.path.isfile(swedbpath):
-    grabbers["swedb"]=swedbpath
-    print "Using swedb grabber in "+grabbers["swedb"]
-else:
-    sys.stderr.write("Kan ikke finde tv_grab_se_swedb grabberen. Fortsaetter uden.")
+if "swedb" in mergeorder: 
+    swedbpath="/usr/bin/tv_grab_se_swedb"
+    if os.name in ("nt", "dos"): 
+        swedbpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_se_swedb"
+    if os.path.isfile(swedbpath):
+        grabbers["swedb"]=swedbpath
+        print "Using swedb grabber in "+grabbers["swedb"]
+    else:
+        sys.stderr.write("Kan ikke finde tv_grab_se_swedb grabberen. Fortsaetter uden.")
 
 parsedicts = {}
 for file in os.listdir("."):
