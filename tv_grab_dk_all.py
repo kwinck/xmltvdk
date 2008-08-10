@@ -111,31 +111,73 @@ try: os.chdir(FOLDER)
 except: raise TypeError, "Kunne ikke åbne mappen '%s'" % FOLDER
 
 #     -----     Henter filer     -----     #
-
 if not '--noupdate' in opts:
-    import filegrabber
-    filegrabber.downloadFilesToFolder(filegrabber.filer, ".")
+    import urllib2
+    import re
+    # Find revision:
+    folderlist=urllib2.urlopen("http://xmltvdk.svn.sourceforge.net/viewvc/xmltvdk/trunk/").read()
+    m=re.search('<td>Directory revision:</td>\n*<td><a href="/viewvc/xmltvdk\\?view=rev&amp;revision=([0-9]+)">([0-9]+)</a>', folderlist)
+    svnrevision=int(m.group(1))
+    print "Sourceforge xmltvdk repository is at revision "+str(svnrevision)
+    localrevision=0
+    try:
+        file=open("revision","r")
+        localrevision=file.read()
+        file.close()
+        print "Local folder at revision "+str(localrevision)
+    except:
+        print "Can not read local revision file"
+    if localrevision<svnrevision:
+        filer = (
+            "ahotparsefile",
+            "analyzeformater.py",
+            "channelid.py",
+            "jubiiparsefile",
+            "ontvparsefile",
+            "runall.py",
+            "splittitle.py",
+            "swedbparsefile",
+            "tdcparsefile",
+            "timefix.py",
+            "tv_grab_dk_ahot.py",
+            "tv_grab_dk_jubii.py",
+            "tv_grab_dk_ontv.py",
+            "tv_grab_dk_tdc.py",
+            "tv_grab_dk_tvguiden.py",
+            "tv2parsefile",
+            "tvguidenparsefile",
+            "xmltvanalyzer.py",
+            "xmltvmerger.py")
+        for filename in filer:
+            print "Copying "+filename+" from sourceforge"
+            contents=urllib2.urlopen("http://xmltvdk.svn.sourceforge.net/viewvc/*checkout*/xmltvdk/trunk/"+filename).read()
+            file=open(filename,"w")
+            file.write(contents)
+            file.close()
+        file=open("revision","w")
+        file.write(str(svnrevision))
+        file.close()
 
 #     -----     Finder filer     -----     #
 #Kigger efter tv2 grabberen
-tv2placfil = "tv2placeringsfil"
-if os.path.isfile(tv2placfil):
-    grabbers["tv2"] = [l.strip() for l in open(tv2placfil) if len(l.strip()) > 0][0]
-if not os.path.isfile(grabbers["tv2"]):
-    sys.stderr.write("Kunne ikke automatisk finde tv2grabberens placering.\n")
-    sys.stderr.write("Ledte på %s\n" % grabbers["tv2"])
-    while True:
-        path = raw_input("Rigtig placering: ")
-        if not os.path.isfile(path):
-            sys.stderr.write("Ingen fil på %s\n" % path)
-            continue
-        grabbers["tv2"] = path
-        f = open(tv2placfil, "w")
-        f.write(path)
-        f.close()
-        break
-print "Using tv2 grabber in "+grabbers["tv2"]
-#kigger efter tv_grab_se_dr grabberen:
+#tv2placfil = "tv2placeringsfil"
+#if os.path.isfile(tv2placfil):
+#    grabbers["tv2"] = [l.strip() for l in open(tv2placfil) if len(l.strip()) > 0][0]
+#if not os.path.isfile(grabbers["tv2"]):
+#    sys.stderr.write("Kunne ikke automatisk finde tv2grabberens placering.\n")
+#    sys.stderr.write("Ledte på %s\n" % grabbers["tv2"])
+#    while True:
+#        path = raw_input("Rigtig placering: ")
+#        if not os.path.isfile(path):
+#            sys.stderr.write("Ingen fil på %s\n" % path)
+#            continue
+#        grabbers["tv2"] = path
+#        f = open(tv2placfil, "w")
+#        f.write(path)
+#        f.close()
+#        break
+#print "Using tv2 grabber in "+grabbers["tv2"]*/
+#kigger efter tv_grab_dk_dr grabberen:
 swedbpath="/usr/bin/tv_grab_dk_dr"
 if os.name in ("nt", "dos"): 
     swedbpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_dk_dr"
