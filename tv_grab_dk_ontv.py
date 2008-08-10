@@ -9,16 +9,19 @@ socket.setdefaulttimeout(10)
 # ---------- Lav kanal liste ---------- #
 from urllib import urlopen
 kanaldata = urlopen("http://ontv.dk/").read()
-start = kanaldata.find('<div class="channels"')
-end = kanaldata.find("<input", start)
 import re
-lande = re.findall(r'<div id="channels(\w\w)"(.*?)</div>', kanaldata[start:end], re.DOTALL)
-kanalexpr = re.compile(r'<a href="/tv/(\d+)" style="font-weight:bold; font-family:Verdana; font-size:12px;">(.*?)</a>')
-kanaler = []
-for land, data in lande:
-    landkanaler = kanalexpr.findall(data)
-    for id, kanal in landkanaler:
-        kanaler.append((id, "%s_%s"%(land,kanal)))
+kanalliste = []
+lande = re.findall('div id="channels([A-Z]{2})"', kanaldata)
+for land in lande:
+    start = kanaldata.find('div id="channels%s"' % land)
+    end = kanaldata.find('div id="channels', start+1)
+    if end < 0:
+        end = kanaldata.find("<script")
+    kanaler = re.findall(r'<a href="/tv/(\d+)"[^<>]*?>([^<>]+?)</a>',
+            kanaldata[start:end], re.DOTALL)
+    for id, navn in kanaler:
+        kanalliste.append((int(id), land+"_"+navn))
+kanalliste.sort()
 
 # ---------- Spørg til konfigurationsfil ---------- #
 import os, sys
@@ -33,11 +36,11 @@ if len(sys.argv) > 1 and sys.argv[1] == "--configure":
         if answer != "y":
             sys.exit()
     file = open(configureFile, "w")
-    for id, name in kanaler:
+    for id, name in kanalliste:
         answer = raw_input("Tilføj %s (y/N) " % name).strip()
         if answer == "y":
-            file.write("%s %s\n" % (id, name))
-        else: file.write("#%s %s\n" % (id, name))
+            file.write("%d %s\n" % (id, name))
+        else: file.write("#%d %s\n" % (id, name))
     sys.exit()
 
 elif not os.path.exists(configureFile):
@@ -75,11 +78,13 @@ k = map(len,htmlentitydefs.entitydefs.keys())
 ampexpr = re.compile("&(?![a-zA-Z0-9]{%d,%d};)" % (min(k),max(k)))
 
 dayexpr = re.compile(r'(\d\d)[:.](\d\d):</p>(?:.*?)<a href="/programinfo/(\d+)">(.*?)\s*</a>')
-progexpr = re.compile(r'(\d\d)[:.](\d\d) - (\d\d)[:.](\d\d)(?:(?:.*?)/serieinfo/(\d+)")*(?:(?:.*?)<p style="margin-top:0px;">(.*?)\s*</p>)*(?:(?:.*?)<img src="(/imgs/print_img.php?.*?)" alt="" />)*', re.DOTALL)
+startendexpr = re.compile('(\d\d)[:.](\d\d) - (\d\d)[:.](\d\d)')
+infoexpr = re.compile(r'(?:<p><strong>|<td><p style="margin-top:0px;">)(.*?)</p><p>', re.DOTALL)
+imgexpr = re.compile(r'src="(http://ontv.dk/imgs/print_img.php.*?)"')
 extraexpr = re.compile(r'<strong>(.*?):</strong>\s*(.*?)<')
-starexpr = re.compile(r'<img src="http://ontv.dk/imgs/stjerne_(\w+)\.gif" />')
+starexpr = re.compile(r'<img src="http://udvikling.ontv.dk/imgs/stars/(full|half).gif" />')
 def getDayProgs (id, day):
-    data = readUrl("http://ontv.dk/?s=tv&guide=&kanal=%s&date=%s" % (id, parseDay(day)))
+    data = readUrl("http://ontv.dk/?s=tvguide_kanal&guide=&kanal=%s&type=&date=%s" % (id, parseDay(day)))
     if not data:
         sys.stderr.write("\nIngen data for %s dag %s\n" % (id, day))
         yield []; return
@@ -104,51 +109,56 @@ def getDayProgs (id, day):
                 sys.stderr.write("\nTimeout for program %s\n" % info)
                 yield parseSmallData(sh, sm, title, day)
                 continue
-                
+            
             start = data.rfind('<div class="content"')
             end = data.find('class="titles">Brugernes mening',start)
             if end < 0: end = data.find("<iframe",start)
             data = data[start:end].decode("iso-8859-1").encode("utf-8")
             data = ampexpr.sub("&amp;",data)
-            m = progexpr.search(data)
             
-            if m: break
-
-        if m == None:
+            stars = starexpr.findall(data)
+            extra = extraexpr.findall(data)
+            times = startendexpr.search(data)
+            info = infoexpr.search(data)
+            img = imgexpr.search(data)
+            
+            if times:
+                break
+        
+        if not times:
             sys.stderr.write("\nMisdannet infomation for program %s\n" % info)
             yield parseSmallData(sh, sm, title, day)
         else:
-            stars = starexpr.findall(data)
-            extra = extraexpr.findall(data)
-            yield parseData(title, stars, extra, m.groups(), day)
+            yield parseData(title, stars, extra, times, info, img, day)
 
 ampexpr = re.compile(r"&(?![\w#]+;)")
 brexpr = re.compile(r"<\s*br\s*/\s*>", re.IGNORECASE)
 def fixText (text):
+    text = text.replace("<strong>","")
+    text = text.replace("</strong>","\n")
     text = ampexpr.sub("&amp;",text)
     text = brexpr.sub("",text).strip()
     if text.endswith("."): text = text[:-1]
     return text
 
-def parseData (title, stars, extras, groups, day):
-    sh, sm, eh, em, link, info, img = groups
+def parseData (title, stars, extras, times, info, img, day):
     dic = {}
     
     parseTitle(fixText(title), dic)
-    if link: parseExtraLink(link, dic)
-    if info: parseInfo(info, dic)
+    if info: parseInfo(info.groups()[0], dic)
     if extras: parseExtras(extras, dic)
     if stars: parseStars(stars, dic)
-    if img: dic["icon"] = "http://ontv.dk/"+img
+    if img: dic["icon"] = img.groups()[0]
     
-    sh, sm, eh, em, day = map(int,(sh, sm, eh, em, day))
+    sh, sm, eh, em = map(int, times.groups())
+    day = int(day)
     dic["start"] = time.strftime("%Y%m%d%H%M%S", jumptime(day, sh, sm))
     tt = jumptime(day, eh, em)
     if eh < sh:
-	time32 = time.mktime(tt)
-	tt = time.gmtime(time32 + 3600 * 24 - time.timezone)
+        time32 = time.mktime(tt)
+        tt = time.gmtime(time32 + 3600 * 24 - time.timezone)
     dic["stop"] = time.strftime("%Y%m%d%H%M%S", tt)
-   
+    
     return dic
 
 def parseSmallData (sh, sm, title, day):
@@ -161,26 +171,11 @@ maxStars = 10
 def parseStars (stars, dic):
     noStars = 0
     for star in stars:
-        if star == "fuld": noStars += 2
-        elif star == "halv": noStars += 1
+        if star == "full": noStars += 2
+        elif star == "half": noStars += 1
     if noStars > maxStars:
         sys.stderr.write(str(dic)+" \t"+str(stars))
     dic["stars"] = noStars
-
-def parseExtraLink (link, dic):
-    data = readUrl("http://ontv.dk/serieinfo/%s" % link)
-    if not data: return
-    start = data.rfind("</p><p>") + len("</p><p>")
-    if start < 0 + len("</p><p>"):
-        start = data.rfind("</h1><p>") + len("</h1><p>")
-    if start < 0 + len("</h1><p>"):
-        start = data.rfind("</table><p>") + len("</table><p>")
-    if start < 0 + len("</table><p"):
-        sys.stderr.write("Fejl i info :O")
-        return
-    end = data.find("</p>", start)
-    data = data[start:end].decode("iso-8859-1").encode("utf-8")
-    parseInfo(data, dic)
 
 titleexpr = re.compile(r'^(.*?)(?:\s+(med\s+.*?))?(?:\s*\(\s*(\d+)*\s*:?\s*(\d+)*\s*\)\s*[-:]?\s*(.*?))?(?:\s+-\s*(.*?))?(?::\s*(.*?))?(?:\s*\(\s*(\d+)*\s*:?\s*(\d+)*\s*\))?$')
 def parseTitle (title, dic):
@@ -268,8 +263,9 @@ creditsDic = {"medvirk":"actor", "endvidere":"actor", "vært":"presenter", "manu
 dateexpr = re.compile(r' fra (\d\d\d\d)')
 stripexpr  = re.compile(r'(:|,|og)\s*\r')
 stripexpr2 = re.compile(r'\r\s*(:|,|og)')
-timeexpr = re.compile(r'\.*(\d{1,2})\.+\s*(\d{1,2}|[a-zA-Z]+)\.*\s*(\d{1,4})?\.*')
-monthdic = { "januar":"1", "jan":"1", "februar":"2", "marts":"3", "mar":"3", "april":"4", "apr":"4", "maj":"5", "juni":"6", "jun":"6", "juli":"7", "jul":"7", "august":"8", "aug":"8", "september":"9", "sep":"9", "oktober":"10", "okt":"10", "november":"11", "nov":"11", "december":"12", "dec":"12" }
+monthdic = { "januar":"1", "jan":"1", "februar":"2", "feb":"2", "marts":"3", "mar":"3", "april":"4", "apr":"4", "maj":"5", "juni":"6", "jun":"6", "juli":"7", "jul":"7", "august":"8", "aug":"8", "september":"9", "sep":"9", "oktober":"10", "okt":"10", "november":"11", "nov":"11", "december":"12", "dec":"12" }
+timeexpr = re.compile("\d+|"+"|".join(monthdic.keys()))
+
 def parseInfo (info, dic):
     info = fixText(info)
     isBad = lambda c: ord(c) < ord(" ") and c != "\n" and c != "\r"
@@ -290,13 +286,19 @@ def parseInfo (info, dic):
             continue
         if line.startswith("Sendt første gang"):
             t = line[18:].strip()
-            d, m, y = timeexpr.match(t).groups()
-            if not m.isdigit(): m = monthdic[m]
-            if m == None: raise AttributeError, "Bad month in %s" % t
-            if y == None: y = time.strftime("%y")
-            d, m, y = map(int, (d, m, y))
-            y = ("%02d" % y)[-2:]
-            t = ("%02d.%02d." % (d, m)) + y
+            parts = timeexpr.findall(t)
+            if len(parts) == 3:
+                d, m, y = parts
+            elif len(parts) == 2:
+                d, m = parts
+                y = time.strftime("%y")
+            elif len(parts) == 1:
+                d = "1"
+                m = "1"
+                y, = parts
+            if not m.isdigit():
+                m = monthdic[m]
+            t = ".".join(s[-2:].zfill(2) for s in (d, m, y))
             t = time.strftime("%Y%m%d",time.strptime(t,"%d.%m.%y"))
             dic["shown"] = t
             continue
@@ -366,22 +368,29 @@ def parseInfo (info, dic):
         normal.append(line)
     
     put ("descda", "\n".join(normal), dic)
-    dic["descda"] = dic["descda"].replace("\n"," ")
+    dic["descda"] = dic["descda"]
 
+episodeexpr = re.compile("(\d+)\s*(?:av|af|:|/)?\s*(\d+)?")
 def parseExtras (extras, dic):
     for key, value in [(k.lower(),fixText(v)) for k,v in extras]:
-        if k == 'medvirkende':
+        if key == 'medvirkende':
             put("actor", splitPersons(value), dic)
-        elif k == 'genre':
+        elif key == 'genre':
              dic["categoryda"] = value
-        elif k == 'type' and not "categoryda" in dic:
+        elif key == 'type' and not "categoryda" in dic:
             dic["categoryda"] = value
-        elif k == 'fra':
-            year, country = v.split(None,1)
-            dic["date"] = year[:4]
-            dic["country"] = country
-        elif k == "episode":
-            dic["episode"] = ".%s." % (str(af),str(ep))
+        elif key == 'fra':
+            year_country = value.split(None,1)
+            for item in year_country:
+                if item[:4].isdigit():
+                    dic["date"] = item[:4]
+                else:
+                    dic["country"] = item
+        elif key == "episode":
+            ep, af = episodeexpr.search(value).groups()
+            if af:
+                dic["episode"] = ".%s/%s." % (af, ep)
+            else: dic["episode"] = ".%s." % ep
 
 def getChannelIcon (url):
     page = readUrl(url)
@@ -392,11 +401,14 @@ def getChannelIcon (url):
 
 # ---------- Læs fra konfigurationsfil ---------- #
 
+import locale
 chosenChannels = []
 for line in open(configureFile, "r"):
     line = line.strip()
     if line and not line[0] == "#":
-        chosenChannels.append(line.split(" ",1))
+        id, name = line.split(" ",1)
+        name = unicode(name, "iso-8859-1").encode(locale.getpreferredencoding())
+        chosenChannels.append((id, name))
         
 # ---------- Parse ---------- #
 
@@ -417,7 +429,7 @@ print u"<tv generator-info-name=\"XMLTV\" generator-info-url=\"http://membled.co
 for id, channel in chosenChannels:
     sys.stderr.write("\n%s:"%channel)
 
-    print "<channel id=\"%s\"><display-name>%s</display-name>" % (id, channel)
+    print "<channel id=\"%s\"><display-name>%s</display-name>" % (id, fixText(channel))
     iconurl = getChannelIcon("http://ontv.dk/extern/widget/kanalLogo.php?id=%s" % id)
     if iconurl: print "<icon src=\"%s\"/>" % iconurl
     print "</channel>"
