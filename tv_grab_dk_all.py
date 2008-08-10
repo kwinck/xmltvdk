@@ -122,7 +122,7 @@ if not '--noupdate' in opts:
     localrevision=0
     try:
         file=open("revision","r")
-        localrevision=file.read()
+        localrevision=int(file.read())
         file.close()
         print "Local folder at revision "+str(localrevision)
     except:
@@ -182,7 +182,7 @@ if "dr" in mergeorder:
     drpath="/usr/bin/tv_grab_dk_dr"
     if os.name in ("nt", "dos"): 
         drpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_dk_dr"
-    if os.path.isfile(swedbpath):
+    if os.path.isfile(drpath):
         grabbers["dr"]=drpath
         print "Using DR grabber in "+grabbers["dr"]
     else:
