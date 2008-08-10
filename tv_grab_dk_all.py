@@ -128,35 +128,45 @@ if not '--noupdate' in opts:
     except:
         print "Can not read local revision file"
     if localrevision<svnrevision:
-        filer = (
-            "ahotparsefile",
-            "analyzeformater.py",
-            "channelid.py",
-            "jubiiparsefile",
-            "ontvparsefile",
-            "runall.py",
-            "splittitle.py",
-            "swedbparsefile",
-            "tdcparsefile",
-            "timefix.py",
-            "tv_grab_dk_ahot.py",
-            "tv_grab_dk_jubii.py",
-            "tv_grab_dk_ontv.py",
-            "tv_grab_dk_tdc.py",
-            "tv_grab_dk_tvguiden.py",
-            "tv2parsefile",
-            "tvguidenparsefile",
-            "xmltvanalyzer.py",
-            "xmltvmerger.py")
-        for filename in filer:
-            print "Copying "+filename+" from sourceforge"
-            contents=urllib2.urlopen("http://xmltvdk.svn.sourceforge.net/viewvc/*checkout*/xmltvdk/trunk/"+filename).read()
-            file=open(filename,"w")
-            file.write(contents)
+        try:
+            parsefiles = (
+                "ahotparsefile",
+                "jubiiparsefile",
+                "ontvparsefile",
+                "swedbparsefile",
+                "tdcparsefile",
+                "tv2parsefile",
+                "tvguidenparsefile")
+            for filename in parsefiles:
+                print "Copying "+filename+" from sourceforge"
+                contents=urllib2.urlopen("http://xmltvdk.svn.sourceforge.net/viewvc/*checkout*/xmltvdk/trunk/channel_ID_parse_filer/"+filename).read()
+                file=open(filename,"w")
+                file.write(contents)
+                file.close()
+            files = (
+                "analyzeformater.py",
+                "channelid.py",
+                "runall.py",
+                "splittitle.py",
+                "timefix.py",
+                "tv_grab_dk_ahot.py",
+                "tv_grab_dk_jubii.py",
+                "tv_grab_dk_ontv.py",
+                "tv_grab_dk_tdc.py",
+                "tv_grab_dk_tvguiden.py",
+                "xmltvanalyzer.py",
+                "xmltvmerger.py")
+            for filename in files:
+                print "Copying "+filename+" from sourceforge"
+                contents=urllib2.urlopen("http://xmltvdk.svn.sourceforge.net/viewvc/*checkout*/xmltvdk/trunk/"+filename).read()
+                file=open(filename,"w")
+                file.write(contents)
+                file.close()
+            file=open("revision","w")
+            file.write(str(svnrevision))
             file.close()
-        file=open("revision","w")
-        file.write(str(svnrevision))
-        file.close()
+        except:
+            print "Can not copy files from sourceforge. Is the connection down? Tries to continue without"
 
 #     -----     Finder filer     -----     #
 #Kigger efter tv2 grabberen
