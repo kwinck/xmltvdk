@@ -191,7 +191,7 @@ my %categories = ( 11854683 => 'kids',
 		   11840363 => 'news',
 		   11870463 => 'local',
 		   11831900 => 'series',
-		   11792069 => 'sport',
+		   11792069 => 'sports',
 		   11837090 => 'health',
 		   11844770 => 'entertainment',
 		   # The following are educated guesses
@@ -204,17 +204,20 @@ my %categories = ( 11854683 => 'kids',
 		   11840285 => 'education'
     );
 
-my %movietypes = (      'action'        => 'action',
-                        'drama'         => 'drama',
-                        'erotisk'       => 'erotic',
-                        'eventyr'       => 'adventure',
-                        'gyser'         => 'horror',
-                        'komedie'       => 'comedy',
-                        'krimi'         => 'crime',
-                        'thriller'      => 'thriller',
-                        'romantisk'     => 'romance',
-                        'western'       => 'western'
-			);
+my %movietypes = ( 'action'    => 'action',
+                   'drama'     => 'drama',
+                   'erotisk'   => 'erotic',
+		   'erotik'    => 'erotic',
+                   'adventure' => 'adventure',
+                   'eventyr'   => 'adventure',
+                   'gyser'     => 'horror',
+                   'komedie'   => 'comedy',
+                   'farce'     => 'comedy',
+                   'krimi'     => 'crime',
+                   'thriller'  => 'thriller',
+                   'romantisk' => 'romance',
+                   'western'   => 'western'
+    );
 # Get options
 XMLTV::Memoize::check_argv('get_url');
 my ($opt_days, $opt_offset, $opt_help, $opt_output,
@@ -512,25 +515,25 @@ for (my $i = $opt_offset;$i<($opt_offset + $opt_days);$i++) {
 		}
 		$prog{start} = correct_day($day, $program->{start});
 		$prog{stop} = correct_day($day, $program->{end});
-		$prog{category} = [ [ $categories{$program->{cat}} ] ];
 
 		my $program_url="http://tvtid.tv2.dk/program/index.php/id-".$program->{'id'}.".html";
 		my $contents = get_url($program_url);
 
 		my $aspect;
-		$aspect = '4:3' if ($contents =~ /pictureFormat43 enabled/);
-		$aspect = '16:9' if ($contents =~ /pictureFormat169 enabled/);
-		my $rerun;
-		$rerun = {} if ($contents =~ /rerun enabled/);
+		$aspect = '4:3' if $contents =~ /pictureFormat43 enabled/;
+		$aspect = '16:9' if $contents =~ /pictureFormat169 enabled/;
+		my $previouslyshown;
+		$previouslyshown = {} if $contents =~ /rerun enabled/;
 		my $sound = 'stereo';
-		$sound = 'surround' if ($contents =~ /surround enabled/);
+		$sound = 'surround' if $contents =~ /surround enabled/;
 		my $teletext;
-		$teletext = {} if ($contents =~ /teletext enabled/);
+		$teletext = {} if $contents =~ /teletext enabled/;
 		my $subtitles;
-		$subtitles = {} if ($contents =~ /subtitles enabled/);
+		$subtitles = {} if $contents =~ /subtitles enabled/;
 		my $colour = 1;
-		$colour = 0 if ($contents =~ /blackwhite enabled/);
-		#if ($contents =~ /subtitlesHearingImpaired enabled/) { print "TTH "; }
+		$colour = 0 if $contents =~ /blackwhite enabled/;
+		my $deaf;
+		$deaf = {} if $contents =~ /subtitlesHearingImpaired enabled/;
 
 		my $descr;
 		my $with;
@@ -542,7 +545,14 @@ for (my $i = $opt_offset;$i<($opt_offset + $opt_days);$i++) {
 		if ($contents =~ /<div class="longinfo">(.+?<)\/div>/) {
 		    $descr = $1;
 
-		    $descr =~ s/\<p\>Sendt første gang .*?\</</; # Remove
+		    if ($descr =~ /(.*)\<p\>Sendt første gang (\d+)\.(\d+)\.(\d+)\.(\<.*)/) {
+			my ($d, $m, $y);
+			($descr, $d, $m, $y) = ($1 . $5, $2, $3, $4);
+			$y += 1900 if $y < 100;
+			$y += 100 if $y < 1970;
+			my $dd = sprintf("%d-%02d-%02d", $y, $m, $d);
+			$previouslyshown = { start => $dd };
+		    }
 		    $descr =~ s/\<p\>Sendes også .*?\</</; # Remove
 
 		    $descr =~ s/\<p\>/ /g;	  # Remove <p>
@@ -602,20 +612,42 @@ for (my $i = $opt_offset;$i<($opt_offset + $opt_days);$i++) {
 		$subtitle = $program->{description} if $program->{description};
 		if (defined $episode) {
 		    if (defined $subtitle) {
-			$subtitle .= "." unless $subtitle =~ /\.$/;
+			$subtitle .= "." unless $subtitle =~ /[.?!]$/;
 			$subtitle .= " Episode " . $episode . ".";
 		    } else {
 			$subtitle = "Episode " . $episode . ".";
 		    }
 		}
 		$prog{'sub-title'} = [ [ $subtitle, $LANG ] ] if defined $subtitle;
+
+		my @cats = ([ $categories{$program->{cat}} ]);
+		if (defined $subtitle) {
+		    foreach (keys(%movietypes)) {
+			push(@cats, [ $movietypes{$_} ]) if $subtitle =~ /$_/i;
+		    }
+		}
+		$prog{category} = [ @cats ];
+
 		if (defined $subtitle && $subtitle =~ / fra (\d{4})/) {
 		    $prog{date} = $1;
 		}
-		$prog{subtitles} = [ { type => 'teletext' } ] if defined $teletext;
 		$prog{subtitles} = [ { type => 'onscreen' } ] if defined $subtitles;
-		$prog{'episode-num'} = [ [ $episode, 'onscreen' ] ] if defined $episode;
-		$prog{'previously-shown'} = $rerun if defined $rerun;
+		$prog{subtitles} = [ { type => 'deaf-signed' } ] if defined $deaf;
+		$prog{subtitles} = [ { type => 'teletext' } ] if defined $teletext;
+		if (defined $episode) {
+		    if ($episode =~ /(\d+)\/(\d+)/) {
+			my ($epi, $maxepi) = ($1, $2);
+			if ($maxepi <= 3 || (defined $subtitles && $subtitles =~ /miniserie/)) {
+			    $prog{'episode-num'} = [ [ '..'.($epi-1).'/'.$maxepi, 'xmltv_ns' ] ];
+			} else {
+			    $prog{'episode-num'} = [ [ '.'.($epi-1).'/'.$maxepi.'.', 'xmltv_ns' ] ];
+			}
+		    } else {
+			$prog{'episode-num'} = [ [ $episode, 'onscreen' ] ];
+		    }
+		}
+		$prog{'previously-shown'} = $previouslyshown if defined $previouslyshown;
+
 		my %c;
 		$c{actor} = $actors if defined $actors;
 		$c{writer} = $writers if defined $writers;
