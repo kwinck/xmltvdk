@@ -1,0 +1,6 @@
+
+This directory contains not-widely available perl modules used by xmltvdk.
+To use these modules run perl with -I /path/to/perllib/ e.g.
+
+  perl -I ~/xmltvdk/perllib/ ~/xmltvdk/tv_grab_dk_tvtid
+
