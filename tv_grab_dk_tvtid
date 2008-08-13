@@ -98,7 +98,7 @@ use HTML::TreeBuilder;
 use HTML::Entities; # parse entities
 use IO::File;
 use URI;
-use JSON;
+use JSON 2;
 
 use Date::Manip;
 
@@ -392,7 +392,7 @@ sub get_channels {
     my $json_t = get_url($url);
     #print $url."\n\n".$json_t."\n\n";
     my $json = new JSON(autoconv => 0, pretty => 1, indent => 2, utf8 => 1);
-    my $js_ref = $json->jsonToObj($json_t);
+    my $js_ref = $json->decode($json_t);
     my @js = @$js_ref;
 
     foreach my $elm (@js)
@@ -488,7 +488,7 @@ for (my $i = $opt_offset;$i<($opt_offset + $opt_days);$i++) {
     my $json_t = get_url($url);
 
     my $json = new JSON(autoconv => 0, pretty => 1, indent => 2, utf8 => 1);
-    my $js_ref = $json->jsonToObj($json_t);
+    my $js_ref = $json->decode($json_t);
     my @js = @$js_ref;
 
     foreach my $elm (@js)
@@ -505,7 +505,7 @@ for (my $i = $opt_offset;$i<($opt_offset + $opt_days);$i++) {
 		# previous day as well, so skip it
 		next if defined $program->{overlap};
 
-		#print $json->objToJson($program)."\n";
+		#print $json->encode($program)."\n";
 
 		my %prog = ();
 		if ($convert{$id}) {
@@ -655,7 +655,7 @@ for (my $i = $opt_offset;$i<($opt_offset + $opt_days);$i++) {
 		$c{presenter} = $presenters if defined $presenters;
 		$prog{credits} = \%c if %c;
 
-		#print $json->objToJson(\%prog) . "\n";
+		#print $json->encode(\%prog) . "\n";
 
 		$writer->write_programme(\%prog);
 	    }
