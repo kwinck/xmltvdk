@@ -16,25 +16,31 @@
 # 'echo -e "\n\n === Jubii === \n" > log.jub' \
 # '$jubgrabber $xmldir/jub 2>> log.jub'
 
-import sys, os, time, threading
+import sys, os
+from Queue import Queue
 from threading import Thread
 
 class commandThread(Thread):
-    def __init__(self, command):
+    def __init__(self, command, queue):
         self.command = command
+        self.queue = queue
         Thread.__init__(self)
+    
     def run(self):
         os.system(self.command)
+        self.queue.put(self)
 
 def runEm (commands, fromFolder = "."):
+    q = Queue()
+    
     for command in commands:
-        thread = commandThread(command)
+        thread = commandThread(command, q)
         thread.start()
     
-    while threading.activeCount() > 1:
-        time.sleep(1) #Temmelig grimt. Ved ikke lige om man kan gøre det anderledes
-        #Måske noget med at alle trådene kaldte noget notify, når de afsluttede,
-        #så der løkken kun blev kørt, når en tråd var slut...
+    count = 0
+    while count < len(commands):
+        q.get()
+        count += 1
 
 if __name__ == "__main__":
     runEm(sys.argv[1:])
