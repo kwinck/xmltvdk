@@ -6,8 +6,20 @@
 import os
 
 #Rækkefølge grabbere skal merges
-mergeorder = ("jubii","dr","tv2","tdc","ahot","tvguiden","ontv")
-
+mergeorder = ("jubii","dr","tvtid","tdc","ahot","tvguiden","ontv","swedb")
+mergeorderpath=r"./mergeorder.conf"
+if os.path.isfile(mergeorderpath):
+    try:
+        print "Found merge order configuration in "+mergeorderpath
+        order=()
+        pfile = open(mergeorderpath).read()
+        for line in pfile.splitlines():
+            order+=(line,)
+        mergeorder=order
+    except:
+        print "Can not read mergeorder file. Continuing with default mergeorder"
+print "Merge order is "+str(mergeorder)
+        
 #Standard configfil placering
 os.environ["HOME"] = os.path.expanduser("~")
 CONFIGDIR = os.environ["HOME"]+os.path.sep+".xmltv"+os.path.sep
@@ -25,6 +37,7 @@ else: grabbers["tv2"] = "/usr/bin/tv_grab_dk"
 #Titlerne på grabberne
 grabberNames = {
     "tv_grab_dk":"tv2",
+    "tv_grab_dk_tvtid":"tvtid",
     "tv_grab_dk_tdc.py":"tdc",
     "tv_grab_dk_ahot.py":"ahot",
     "tv_grab_dk_ontv.py":"ontv",
@@ -37,6 +50,7 @@ grabberNames = {
 #Hvilke programmer grabbere skal køres med
 interpreters = {
     "tv2":"perl",
+    "tvtid":"perl -I perllib/",
     "dr":"perl",
     "tdc":"python",
     "ahot":"python",
@@ -60,6 +74,7 @@ needSplittitle = {
 #Grabberen skal i det tilf�lde konfigureres s�rskilt.
 configFiles = {
     "tv2":"tv_grab_dk.conf",
+    "tvtid":"tv_grab_dk_tvtid.conf",
     "dr":"tv_grab_dk_dr.conf",
     "ahot":"tv_grab_dk_ahot.conf",
     "ontv":"tv_grab_dk_ontv.conf",
@@ -74,20 +89,22 @@ extraConfigLines = {
 
 #Særlige funktioner til oversættelse af parsefil -> configfil
 configAdaptors = {
-    "tv2": lambda t, a: "channel %s %s" % (t[:3], a),
-    "dr": lambda t, a: "channel %s %s" % (t[:3], a)
+    "tv2":   lambda t, a: "channel %s %s" % (t[:3], a),
+    "tvtid": lambda t, a: "channel %s %s" % (t[:3], a),
+    "dr":    lambda t, a: "channel %s %s" % (t[:3], a)
 }
 
 #Om grabberen bruger "id name" eller bare "id"
 needName = {
     "tv2":True,
+    "tvtid":True,
     "dr":True,
     "ontv":True,
     "tvguiden":True
 }
 
 #     -----     Parser argumenter     -----     #
-
+print "Parsing arguments"
 FOLDER = os.path.dirname(__file__)
 if not FOLDER: FOLDER = "."
 if not FOLDER.endswith(os.path.sep): FOLDER += os.path.sep
@@ -115,10 +132,15 @@ if not '--noupdate' in opts:
     import urllib2
     import re
     # Find revision:
-    folderlist=urllib2.urlopen("http://xmltvdk.svn.sourceforge.net/viewvc/xmltvdk/trunk/").read()
-    m=re.search('<td>Directory revision:</td>\n*<td><a href="/viewvc/xmltvdk\\?view=rev&amp;revision=([0-9]+)">([0-9]+)</a>', folderlist)
-    svnrevision=int(m.group(1))
-    print "Sourceforge xmltvdk repository is at revision "+str(svnrevision)
+    svnrevision=0
+    try:
+        print "Reading revision of sourceforge"
+        folderlist=urllib2.urlopen("http://xmltvdk.svn.sourceforge.net/viewvc/xmltvdk/trunk/").read()
+        m=re.search('<td>Directory revision:</td>\n*<td><a href="/viewvc/xmltvdk\\?view=rev&amp;revision=([0-9]+)">([0-9]+)</a>', folderlist)
+        svnrevision=int(m.group(1))
+        print "Sourceforge xmltvdk repository is at revision "+str(svnrevision)
+    except:
+        print "Can not read revision of sourceforge xmltvdk repository"
     localrevision=0
     try:
         file=open("revision","r")
@@ -136,6 +158,7 @@ if not '--noupdate' in opts:
                 "swedbparsefile",
                 "tdcparsefile",
                 "tv2parsefile",
+                "tvtidparsefile",
                 "tvguidenparsefile")
             for filename in parsefiles:
                 print "Copying "+filename+" from sourceforge"
@@ -143,17 +166,27 @@ if not '--noupdate' in opts:
                 file=open(filename,"w")
                 file.write(contents)
                 file.close()
+            if not os.path.isdir("perllib/JSON/PP"):
+                os.makedirs("perllib/JSON/PP")
             files = (
                 "analyzeformater.py",
                 "channelid.py",
+                "perllib/JSON.pm",
+                "perllib/JSON/PP56.pm",
+                "perllib/JSON/PP58.pm",
+                "perllib/JSON/PP.pm",
+                "perllib/JSON/PP/Boolean.pm",
+                "perllib/JSON/PP5005.pm",
                 "runall.py",
                 "splittitle.py",
                 "timefix.py",
                 "tv_grab_dk_ahot.py",
+                "tv_grab_dk_dr",
                 "tv_grab_dk_jubii.py",
                 "tv_grab_dk_ontv.py",
                 "tv_grab_dk_tdc.py",
                 "tv_grab_dk_tvguiden.py",
+                "tv_grab_dk_tvtid",
                 "xmltvanalyzer.py",
                 "xmltvmerger.py")
             for filename in files:
@@ -188,25 +221,33 @@ if not '--noupdate' in opts:
 #        break
 #print "Using tv2 grabber in "+grabbers["tv2"]*/
 #kigger efter tv_grab_dk_dr grabberen:
-if "dr" in mergeorder: 
-    drpath="/usr/bin/tv_grab_dk_dr"
-    if os.name in ("nt", "dos"): 
-        drpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_dk_dr"
+if "dr" in mergeorder:
+    drpath="./tv_grab_dk_dr"
+    if not os.path.isfile(drpath):
+        drpath="/usr/bin/tv_grab_dk_dr"
+        if not os.path.isfile(drpath):
+            drpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_dk_dr"
+            if not os.path.isfile(drpath):
+                drpath=r"C:\Perl\site\lib\xmltv\tv_grab_dk_dr"
     if os.path.isfile(drpath):
         grabbers["dr"]=drpath
         print "Using DR grabber in "+grabbers["dr"]
     else:
-        sys.stderr.write("Kan ikke finde tv_grab_dk_dr grabberen. Fortsaetter uden.")
+        print "Kan ikke finde tv_grab_dk_dr grabberen. Fortsaetter uden."
 #kigger efter tv_grab_se_swedb grabberen:
 if "swedb" in mergeorder: 
-    swedbpath="/usr/bin/tv_grab_se_swedb"
-    if os.name in ("nt", "dos"): 
-        swedbpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_se_swedb"
+    swedbpath="./tv_grab_se_swedb"
+    if not os.path.isfile(drpath):
+        swedbpath="/usr/bin/tv_grab_se_swedb"
+        if not os.path.isfile(drpath):
+            swedbpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_se_swedb"
+            if not os.path.isfile(drpath):
+                swedbpath=r"C:\Perl\site\lib\xmltv\tv_grab_se_swedb"
     if os.path.isfile(swedbpath):
         grabbers["swedb"]=swedbpath
         print "Using swedb grabber in "+grabbers["swedb"]
     else:
-        sys.stderr.write("Kan ikke finde tv_grab_se_swedb grabberen. Fortsaetter uden.")
+        print "Kan ikke finde tv_grab_se_swedb grabberen. Fortsaetter uden."
 
 parsedicts = {}
 for file in os.listdir("."):
