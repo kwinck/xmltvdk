@@ -29,9 +29,9 @@ CONFIGFILE = CONFIGDIR+"tv_grab_dk_all.conf"
 
 #Grabbere, der ikke bliver hentet af filegrabber
 grabbers = {}
-if os.name in ("nt", "dos"): grabbers["tv2"] = r"C:\Perl\site\lib\xmltv\dk\tv_grab_dk"
-elif os.name == "posix": grabbers["tv2"] = "/usr/bin/tv_grab_dk"
-else: grabbers["tv2"] = "/usr/bin/tv_grab_dk"
+#if os.name in ("nt", "dos"): grabbers["tv2"] = r"C:\Perl\site\lib\xmltv\dk\tv_grab_dk"
+#elif os.name == "posix": grabbers["tv2"] = "/usr/bin/tv_grab_dk"
+#else: grabbers["tv2"] = "/usr/bin/tv_grab_dk"
 #TODO: Andre os'er: mac, os2, ce
 
 #Titlerne på grabberne
@@ -237,11 +237,11 @@ if "dr" in mergeorder:
 #kigger efter tv_grab_se_swedb grabberen:
 if "swedb" in mergeorder: 
     swedbpath="./tv_grab_se_swedb"
-    if not os.path.isfile(drpath):
+    if not os.path.isfile(swedbpath):
         swedbpath="/usr/bin/tv_grab_se_swedb"
-        if not os.path.isfile(drpath):
+        if not os.path.isfile(swedbpath):
             swedbpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_se_swedb"
-            if not os.path.isfile(drpath):
+            if not os.path.isfile(swedbpath):
                 swedbpath=r"C:\Perl\site\lib\xmltv\tv_grab_se_swedb"
     if os.path.isfile(swedbpath):
         grabbers["swedb"]=swedbpath
