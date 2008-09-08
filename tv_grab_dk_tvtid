@@ -418,10 +418,7 @@ sub tidy( $ ) {
     }
 }
 
-my $fetched;
 sub get_url( $ ) {
-    sleep rand(5) if defined $fetched;
-    $fetched = 1;
     my $c = tidy($ua->get(shift)->content);
     return $c;
 }
