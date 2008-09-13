@@ -340,32 +340,36 @@ ccset = dict.fromkeys(chosenChannels)
 print "Chosen channels: "+str(ccset)
 for grabber, parsefile in parsedicts.iteritems():
     if grabber in configFiles:
-        print "Configuring "+grabber+" grabber"
-        if grabber=="tdc":
-            tdcset={}
-            for ch in ccset:
-                tdcset[parsedicts[grabber][ch]]="Yes"
-            channelTable=loadChannels(configFiles[grabber])
-            for index in range(len(channelTable)):
-                channel, channelPackageIdx, channelIdx, active, xmltvid = channelTable[index]
-                active=xmltvid in tdcset
-                channelTable[index] = (channel, channelPackageIdx, channelIdx, active, xmltvid)
-            saveChannels(channelTable, CONFIGDIR+configFiles[grabber])
-        else:
-            f = open(CONFIGDIR+configFiles[grabber],"w")
-            if grabber in extraConfigLines:
-                f.write(extraConfigLines[grabber]+"\n")
-            for channel in [c for c in channels if c in parsedicts[grabber]]:
-                if not channel in ccset:
-                    f.write("# ")
-                parsedChannel = parsedicts[grabber][channel]
-                if grabber in configAdaptors:
-                    f.write("%s\n" % configAdaptors[grabber](parsedChannel,channel))
-                elif grabber in needName:
-                    f.write("%s %s\n" % (parsedChannel,channel))
-                else:
-                    f.write("%s\n" % parsedChannel)
-            f.close()
+        try:
+            print "Configuring "+grabber+" grabber"
+            if grabber=="tdc":
+                tdcset={}
+                for ch in ccset:
+                    if ch in parsedicts[grabber]:
+                        tdcset[parsedicts[grabber][ch]]="Yes"
+                channelTable=loadChannels(configFiles[grabber])
+                for index in range(len(channelTable)):
+                    channel, channelPackageIdx, channelIdx, active, xmltvid = channelTable[index]
+                    active=xmltvid in tdcset
+                    channelTable[index] = (channel, channelPackageIdx, channelIdx, active, xmltvid)
+                saveChannels(channelTable, CONFIGDIR+configFiles[grabber])
+            else:
+                f = open(CONFIGDIR+configFiles[grabber],"w")
+                if grabber in extraConfigLines:
+                    f.write(extraConfigLines[grabber]+"\n")
+                for channel in [c for c in channels if c in parsedicts[grabber]]:
+                    if not channel in ccset:
+                        f.write("# ")
+                    parsedChannel = parsedicts[grabber][channel]
+                    if grabber in configAdaptors:
+                        f.write("%s\n" % configAdaptors[grabber](parsedChannel,channel))
+                    elif grabber in needName:
+                        f.write("%s %s\n" % (parsedChannel,channel))
+                    else:
+                        f.write("%s\n" % parsedChannel)
+                f.close()
+        except:
+            print "Can not configure "+grabber+" grabber"
 
 df = "data"+os.path.sep
 if not os.path.exists(df):
