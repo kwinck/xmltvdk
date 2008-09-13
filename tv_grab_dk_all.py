@@ -4,9 +4,10 @@
 # $Id$
 
 import os
+import codecs
 
 #Rækkefølge grabbere skal merges
-mergeorder = ("jubii","dr","tvtid","tdc","ahot","tvguiden","ontv","swedb")
+mergeorder = ("jubii","tvtid","dr","tdc","ahot","tvguiden","ontv","swedb")
 mergeorderpath=r"./mergeorder.conf"
 if os.path.isfile(mergeorderpath):
     try:
@@ -79,7 +80,8 @@ configFiles = {
     "ahot":"tv_grab_dk_ahot.conf",
     "ontv":"tv_grab_dk_ontv.conf",
     "jubii":"tv_grab_dk_jubii.conf",
-    "tvguiden":"tv_grab_dk_tvguiden_py.conf"
+    "tvguiden":"tv_grab_dk_tvguiden_py.conf",
+    "tdc":"tv_grab_dk_tdc.conf"
 }
 
 #Her kan der defineres linier som placeres i starten af conf filen:
@@ -153,11 +155,11 @@ if not '--noupdate' in opts:
         try:
             parsefiles = (
                 "ahotparsefile",
+                "drparsefile",
                 "jubiiparsefile",
                 "ontvparsefile",
                 "swedbparsefile",
                 "tdcparsefile",
-                "tv2parsefile",
                 "tvtidparsefile",
                 "tvguidenparsefile")
             for filename in parsefiles:
@@ -185,6 +187,7 @@ if not '--noupdate' in opts:
                 "tv_grab_dk_jubii.py",
                 "tv_grab_dk_ontv.py",
                 "tv_grab_dk_tdc.py",
+                "tv_grab_dk_tdc.conf",
                 "tv_grab_dk_tvguiden.py",
                 "tv_grab_dk_tvtid",
                 "xmltvanalyzer.py",
@@ -253,15 +256,18 @@ parsedicts = {}
 for file in os.listdir("."):
     if file in grabberNames:
         if grabberNames[file] in mergeorder:
-            print "Using "+grabberNames[file]+" grabber in "+file
             grabbers[grabberNames[file]] = file
     elif file.endswith("parsefile"):
         if file[:-9] in mergeorder:
+            print "Reading parsefile "+file
             dic = {}
             for line in open(file):
                 k, v = [v.strip() for v in line.split("\t",1)]
                 dic[v] = k
             parsedicts[file[:-9]] = dic
+for grabber in grabbers:
+    print "Using "+grabber+" grabber in "+grabbers[grabber]
+
 
 channel_set = {}
 for grabberchannels in parsedicts.values():
@@ -289,6 +295,32 @@ def configure (file, channels):
         else: file.write("#%s %s\n" % (id, name))
     sys.exit()
 
+#     -----     load and save TDC configuration files     -----     #
+
+def loadChannels (filename):
+    loadLocals = {}
+    execfile(filename, globals(), loadLocals)
+    if (not loadLocals.has_key('version')) or (loadLocals['version'] == u'0.9'):
+        sys.stderr.write("Warning: You should update %s by deleting the old and make a new\n" % filename)
+        sys.stderr.write("Sorry for the inconvienence\n")
+    return loadLocals['channels']
+
+def saveChannels (channels, filename):
+    output = codecs.open(filename, 'w', 'utf-8')
+    output.write(u'#!/usr/bin/env python\n')
+    output.write(u'# -*- coding: UTF-8 -*-\n')
+    output.write(u'\n')
+    output.write(u"progname  = u'tv_grab_dk_tdc'\n")
+    output.write(u"version   = u'0.99'\n")
+    output.write(u'\n')
+    output.write(u'# If you edit this file by hand, only change active and xmltvid columns.\n')
+    output.write(u'# (channel, channelPackageIdx, channelIdx, active, xmltvid)\n')
+    output.write(u'channels = [\n')
+    for ch in channels[:-1]:
+        output.write(str(ch) + u',\n')
+    output.write(str(channels[-1]) + u']\n')
+    output.close()
+
 configfile = "--config-file" in opts and opts["--config-file"] or CONFIGFILE
 if "--configure" in opts:
     configure(configfile, [(p,p) for p in channels])
@@ -305,22 +337,35 @@ chosenChannels = [l.strip() for l in open(configfile)]
 chosenChannels = [l for l in chosenChannels if not l.startswith("#")]
 chosenChannels = [l.split(" ")[0] for l in chosenChannels]
 ccset = dict.fromkeys(chosenChannels)
+print "Chosen channels: "+str(ccset)
 for grabber, parsefile in parsedicts.iteritems():
     if grabber in configFiles:
-        f = open(CONFIGDIR+configFiles[grabber],"w")
-        if grabber in extraConfigLines:
-            f.write(extraConfigLines[grabber]+"\n")
-        for channel in [c for c in channels if c in parsedicts[grabber]]:
-            if not channel in ccset:
-                f.write("# ")
-            parsedChannel = parsedicts[grabber][channel]
-            if grabber in configAdaptors:
-                f.write("%s\n" % configAdaptors[grabber](parsedChannel,channel))
-            elif grabber in needName:
-                f.write("%s %s\n" % (parsedChannel,channel))
-            else:
-                f.write("%s\n" % parsedChannel)
-        f.close()
+        print "Configuring "+grabber+" grabber"
+        if grabber=="tdc":
+            tdcset={}
+            for ch in ccset:
+                tdcset[parsedicts[grabber][ch]]="Yes"
+            channelTable=loadChannels(configFiles[grabber])
+            for index in range(len(channelTable)):
+                channel, channelPackageIdx, channelIdx, active, xmltvid = channelTable[index]
+                active=xmltvid in tdcset
+                channelTable[index] = (channel, channelPackageIdx, channelIdx, active, xmltvid)
+            saveChannels(channelTable, CONFIGDIR+configFiles[grabber])
+        else:
+            f = open(CONFIGDIR+configFiles[grabber],"w")
+            if grabber in extraConfigLines:
+                f.write(extraConfigLines[grabber]+"\n")
+            for channel in [c for c in channels if c in parsedicts[grabber]]:
+                if not channel in ccset:
+                    f.write("# ")
+                parsedChannel = parsedicts[grabber][channel]
+                if grabber in configAdaptors:
+                    f.write("%s\n" % configAdaptors[grabber](parsedChannel,channel))
+                elif grabber in needName:
+                    f.write("%s %s\n" % (parsedChannel,channel))
+                else:
+                    f.write("%s\n" % parsedChannel)
+            f.close()
 
 df = "data"+os.path.sep
 if not os.path.exists(df):
