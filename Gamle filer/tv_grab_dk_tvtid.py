@@ -1,6 +1,10 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
 #
+# This file contains an initial version of a tvtid-grabber
+# it is not fully functional - but may use some nice ideas
+# which can be used for other future grabbers.
+#
 # $Id$
 #
 # tv_grab_dk_tvtid v0.0.1

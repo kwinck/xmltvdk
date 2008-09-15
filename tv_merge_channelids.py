@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 #  -*- coding: utf-8 -*-
 
-VERSION = "$id: 1$"
+VERSION = "$Id$"
 
 '''
 =pod
