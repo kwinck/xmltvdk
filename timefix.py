@@ -38,7 +38,7 @@ Example:
    getTimeZone("20080723054000") -> (2008,7,23,5,40,0)
 
 '''
-    assert(len(ts) in [12,14])
+    assert(len(ts) in [8,12,14])
     tss = [int(ts[i:i+2]) for i in range(2, len(ts),2)]
     tss[0] += int(ts[:2])*100
 
@@ -220,9 +220,16 @@ def fixTimeZone(xml):
     
     def timerepl (match):
         pre, ts, post = match.groups()
-        ts = ts.strip()
-        if "+" not in ts and len(ts) in [12,14]:
-            ts += " " + getTimeZone(ts)
+        # cleanup timestamps with -, e.g., 2007-05-14
+        ts = ts.strip().replace("-","")
+        if "+" not in ts:
+            if len(ts) in [8,12,14]:
+                ts += " " + getTimeZone(ts)
+            else:
+                sys.stderr.write("Unrecognized timestamp %s of length %d.\n"
+                                 % (repr(ts), len(ts)))
+                sys.stderr.write("Please report this to the xmltvdk "
+                                 "mailinglist.\n")
         return pre + ts + post
     
     return re.sub(r"((?:start|stop)\s*=\s*[\"'])(.*?)([\"'])", timerepl, xml)
