@@ -221,7 +221,7 @@ def fixTimeZone(xml):
     def timerepl (match):
         pre, ts, post = match.groups()
         ts = ts.strip()
-        if " " not in ts:
+        if "+" not in ts and len(ts) in [12,14]:
             ts += " " + getTimeZone(ts)
         return pre + ts + post
     

@@ -547,7 +547,7 @@ for (my $i = $opt_offset;$i<($opt_offset + $opt_days);$i++) {
 			($descr, $d, $m, $y) = ($1 . $5, $2, $3, $4);
 			$y += 1900 if $y < 100;
 			$y += 100 if $y < 1970;
-			my $dd = sprintf("%d-%02d-%02d", $y, $m, $d);
+			my $dd = sprintf("%d%02d%02d", $y, $m, $d);
 			$previouslyshown = { start => $dd };
 		    }
 		    $descr =~ s/\<p\>Sendes også .*?\</</; # Remove
