@@ -92,7 +92,7 @@ Genudsendelse fra mandag. - convert to <previously-shown>?
 # initializations
 
 use strict;
-use XMLTV::Version '$Id: tv_grab_dk,v 1.35 2006/07/12 12:58:31 jtoft Exp $ ';
+use XMLTV::Version '$Id$ ';
 use XMLTV::Capabilities qw/baseline manualconfig cache/;
 use XMLTV::Description 'Denmark';
 use Getopt::Long;

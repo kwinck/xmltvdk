@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: UTF-8 -*-
+# -*- coding: utf-8 -*-
 #
 # $Id$
 
@@ -33,7 +33,7 @@
 # 2007-03-21: This changelog is stopped, since it is now under subversion control.
 #
 # 2007-01-02: Version 0.98
-# 	- Output is set to utf-8 unless it is to concole or forced by option
+# 	- Output is set to UTF-8 unless it is to concole or forced by option
 # 	- Find the users home with os.path.expanduser() - Should be more portable
 #
 # 2006-12-28: Version 0.97
@@ -101,16 +101,40 @@ import datetime
 import codecs
 import locale
 import sys
+import time
+class LocalTimeZone(datetime.tzinfo):
+	"Use timezone information according to the module time"
+	def __init__(self, is_dst = -1):
+		datetime.tzinfo.__init__(self)
+		if is_dst == -1:
+			self.is_dst = -1
+		else:
+			self.is_dst = int(bool(is_dst)) # ensure a 0 or 1 value
+
+	def _dtOffset(self, dt):
+		dtt = dt.replace(tzinfo = None).timetuple()[:-1] + (self.is_dst,)
+		tst = time.localtime(time.mktime(dtt))
+		return [-time.timezone, -time.altzone, None][tst[-1]]
+	
+	def utcoffset(self, dt):
+		offset = self._dtOffset(dt)
+		if offset is None: return None
+		return datetime.timedelta(0,offset)
+	
+	def dst(self, dt):
+		offset = self._dtOffset(dt)
+		if offset is None: return None
+		return datetime.timedelta(0,offset+time.timezone)
+	
+	def localize(self, dt, is_dst = -1):
+		return dt.replace(tzinfo = LocalTimeZone(is_dst))
 try:
 	import pytz
-except:
+except ImportError:
 	class PyTZ:
 		def timezone(self, tzstring):
-			return None
+			return LocalTimeZone()
 	pytz = PyTZ()
-	class FakeTimezone:
-		def localize(self, dt, is_dst=None):
-			return dt
 
 # Snatched from http://kofoto.rosdahl.net/trac/wiki/UnicodeInPython
 def get_file_encoding(f):
@@ -150,6 +174,7 @@ class BaseTVGrabber:
 		# Standard values for some parameters
 		self.quiet = False
 		self.configure = False
+		self.listchannels = False
 		self.gui = False
 		self.offset = 0
 		self.days = None
@@ -158,11 +183,7 @@ class BaseTVGrabber:
 		self.outputEncoding = 'UTF-8'
 		# Danish timezone
 		self.dktz = pytz.timezone('Europe/Copenhagen')
-		if self.dktz:
-			self.timeformat = '%Y%m%d%H%M %z'
-		else:
-			self.timeformat = '%Y%m%d%H%M'
-			self.dktz = FakeTimezone()
+		self.timeformat = '%Y%m%d%H%M %z'
 	
 	def setQuiet(self, quiet):
 		self.quiet = quiet
@@ -211,6 +232,8 @@ class BaseTVGrabber:
 				self.quiet = True
 			elif arg == '--configure':
 				self.configure = True
+			elif arg == '--list-channels':
+				self.listchannels = True
 			#elif arg == '--gui':
 			#	self.gui = True
 			elif len(argv) > 0:
@@ -368,7 +391,7 @@ class TDCGrabber(BaseTVGrabber):
 		
 		self.progname = u'tv_grab_dk_tdc'
 		self.version = u'0.99'
-		self.description = u'Denmark (tvguide.tdconline.dk)'
+		self.description = u'Denmark (portal.yousee.dk/ktvTVGuide/tvguide.portal)'
 		self.capabilities = ['baseline', 'manualconfig']
 		self.defaultConfigFile = self.xmltvDir + '/tv_grab_dk_tdc.conf'
 		self.configFile = self.defaultConfigFile
@@ -396,6 +419,8 @@ class TDCGrabber(BaseTVGrabber):
 	
 	def printUsage(self):
 		BaseTVGrabber.printUsage(self)
+		sys.stderr.write(" --list-channels\n")
+		sys.stderr.write("     List available channels. The list is in xmltv-format\n")
 		sys.stderr.write(" --no-details\n")
 		sys.stderr.write("     Drop details thereby making it a lot faster\n")
 		sys.stderr.write(" --output-encoding\n")
@@ -578,7 +603,7 @@ class TDCGrabber(BaseTVGrabber):
 		succes = True
 		try:
 			output.write(u'#!/usr/bin/env python\n')
-			output.write(u'# -*- coding: UTF-8 -*-\n')
+			output.write(u'# -*- coding: utf-8 -*-\n')
 			output.write(u'\n')
 			output.write(u"progname  = u'"+self.progname  +u"'\n")
 			output.write(u"version   = u'"+self.version   +u"'\n")
@@ -586,9 +611,9 @@ class TDCGrabber(BaseTVGrabber):
 			output.write(u'# If you edit this file by hand, only change active and xmltvid columns.\n')
 			output.write(u'# (channel, channelPackageIdx, channelIdx, active, xmltvid)\n')
 			output.write(u'channels = [\n')
-			for ch in self.channels[:-1]:
+			for ch in self.channels:
 				output.write(str(ch) + u',\n')
-			output.write(str(self.channels[-1]) + u']\n')
+			output.write(u']\n')
 		except:
 			sys.stderr.write("Could not save channels!\n")
 			succes = False
@@ -939,7 +964,7 @@ class TDCGrabber(BaseTVGrabber):
 	
 	def writeXMLChannels (self, file, indent=0):
 		for channel, channelPackageIdx, channelIdx, channelActive, xmltvId in self.channels:
-			if channelActive and self.programme[channel]:
+			if self.listchannels or (channelActive and self.programme[channel]):
 				self.writeXMLLine(file, u'<channel id="'+xmltvId+u'">', indent)
 				self.writeXMLLine(file, u'<display-name>'+channel+u'</display-name>', indent+1)
 				self.writeXMLLine(file, u'</channel>', indent)
@@ -1001,9 +1026,9 @@ class TDCGrabber(BaseTVGrabber):
 		
 		self.writeXMLLine(file, u'', 0)
 		self.writeXMLChannels (file, 1)
-		self.writeXMLLine(file, u'', 0)
-		self.writeXMLProgramme (file, 1)
-		
+		if not self.listchannels:
+			self.writeXMLLine(file, u'', 0)
+			self.writeXMLProgramme (file, 1)
 		self.writeXMLLine(file, u'</tv>', 0)
 
 	def save(self, filename):
@@ -1014,7 +1039,7 @@ class TDCGrabber(BaseTVGrabber):
 		succes = True
 		try:
 			output.write(u'#!/usr/bin/env python\n')
-			output.write(u'# -*- coding: UTF-8 -*-\n\n')
+			output.write(u'# -*- coding: utf-8 -*-\n\n')
 			output.write(u'import datetime\n')
 			output.write(u'\n')
 			output.write(u"progname  = u'"+self.progname      +u"'\n")
@@ -1066,7 +1091,10 @@ class TDCGrabber(BaseTVGrabber):
 		for index in range(len(self.channels)):
 			channel, channelPackageIdx, channelIdx, active, xmltvid = self.channels[index]
 			self.channels[index] = (channel, channelPackageIdx, channelIdx, False, xmltvid)
-	
+
+	def listChannels(self, file):
+		self.writeXML(file)
+
 	def interactiveConfigure(self):
 		print ""
 		for channel, channelPackageIdx, channelIdx, channelActive, xmltvId in self.getChannels():
@@ -1122,7 +1150,9 @@ class TDCGrabber(BaseTVGrabber):
 			self.configure = True
 			grabber.retrieveChannels()
 			
-		if self.configure:
+		if self.listchannels:
+			self.listChannels(file)
+		elif self.configure:
 			self.interactiveConfigure()
 		else:
 			if not self.quiet:
@@ -1151,7 +1181,7 @@ if __name__ == "__main__":
 	if sys.stdout.isatty():
 		sys.stdout = codecs.getwriter(get_file_encoding(sys.stdout))(sys.stdout)
 	else:
-		sys.stdout = codecs.getwriter('UTF-8')(sys.stdout)
+		sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
 	
 	grabber = TDCGrabber()
 	status = grabber.parseArguments(sys.argv)
