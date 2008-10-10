@@ -371,6 +371,11 @@ def ts2string(tt, is_dst = -1):
     dt = mytz.localize(datetime.datetime(*tt[:6]), is_dst)
     return dt.strftime("%Y%m%d%H%M%S %z")
 
+# warn if we are running in the middle of the night
+if 4 <= time.localtime()[3] < 6:
+    log.write("Warning: You may get unexpected results when running "
+              "this script between 04:00 and 06:00.\n")
+
 # ---------- Funktioner til parsing ---------- #
 
 def noon(day):
@@ -379,7 +384,7 @@ def noon(day):
     now = time.localtime() 
     noon = time.mktime(now[:3] + (12,0,0,0,0,-1))
     if 0 <= now[3] <= 5: 
-        days -= 1
+        day -= 1
     return time.localtime(noon + day * 24*3600)[:3] + (12,0,0,0,0,-1)
 
 def parseDay (day):
