@@ -35,7 +35,7 @@ Split time stamp assuming that it uses one of the formats
     "%Y%m%d%H%M%S" or "%Y%m%d%H%M".
 
 Example:
-   getTimeZone("20080723054000") -> (2008,7,23,5,40,0)
+   splitTimeStamp("20080723054000") -> (2008,7,23,5,40,0)
 
 '''
     assert(len(ts) in [8,12,14])
@@ -61,7 +61,7 @@ On a properly configured system, this should give the right outcome
 winter time).
 
 Example:
-   getTimeZone("20080723054000") -> 3600
+   _getTimeZoneOffset("20080723054000") -> 3600
 '''
     if is_dst < 0:
         z = -1
