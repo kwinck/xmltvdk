@@ -19,36 +19,47 @@ import urllib2
 socket.setdefaulttimeout(10)
 
 # ---------- Kig på evt. kommandolinieargumenter ---------- #
+grabbername = os.path.basename(sys.argv[0]).rstrip(".py")
+xmlcdir = os.path.expanduser("~/.xmltv/")
+defaultconffile = os.path.normpath(os.path.join(xmlcdir,grabbername + ".conf"))
+maxdays = 15
 cachepolicies = ["never","smart","always"]
 defaultcachepolicy = 1 
-defaultcachedir  = os.path.normpath(os.path.expanduser("~/.xmltv/cache-ontv/"))
+defaultcachedir  = os.path.normpath(os.path.join(xmlcdir, "cache-ontv/"))
+
 def parseOpts():
-    global cachepolicies, defaultcachedir, defaultcachepolicy
+    global grabbername
+    global defaultconffile
+    global maxdays
+    global cachepolicies, defaultcachepolicy, defaultcachedir
+
     parser = optparse.OptionParser()
 
-    parser.usage = "%prog [options]"
+    parser.usage = """
+To show version:                %prog --version
+To show capabilities:           %prog --capabilities
+To list all available channels: %prog --list-channels [options]
+To configure:                   %prog --configure [options]
+To grab listings:               %prog [options]"""
 
     xopts = [
-        ("configure","configure","Prompt for which stations to download and "
-         "write the configuration file."),
+        ("version", "version", "Show the version of the grabber."),
         ("capabilities", "capabilities", "Show xmltv capabilities."),
         ("list-channels","listchannels","Output a list of all channels that data is "
          "available for. The list is in xmltv-format."),
-        ("version", "version", "Show the version of the grabber."),
+        ("configure","configure","Prompt for which stations to download and "
+         "write the configuration file."),
         ]
-
     for (opt, var, text) in xopts:
         parser.add_option("--"+opt, dest=var, action="store_true",
                           default=False, help=text)
 
-    confdf = os.path.normpath(os.path.expanduser("~/.xmltv/tv_grab_dk_ontv.conf"))
     parser.add_option("--config-file", dest="configfile", metavar="FILE",
-                      default=confdf, help =
+                      default=defaultconffile, help =
                       ("Set the name of the configuration file, the default "
                        "is %s. This is the file written by --configure "
-                       "and read when grabbing." % confdf))
+                       "and read when grabbing." % defaultconffile))
     
-
     parser.add_option("--quiet", dest="verbose", action="store_false",
                       default=True,
                       help="Be quiet.")
@@ -57,11 +68,10 @@ def parseOpts():
                       help=("File name of output xml file. If not provided "
                             "or '-', stdout is used."))
 
-    ddays = 15
-    parser.add_option("--days", dest="days", metavar="N", default=ddays,
+    parser.add_option("--days", dest="days", metavar="N", default=maxdays,
                       type=int,
                       help="When grabbing, grab N days rather than %d."
-                      % ddays)
+                      % maxdays)
     parser.add_option("--offset", dest="offset", metavar="N", default=0,
                       type=int,
                       help="Start grabbing at today + N days, 0 <= N")
@@ -76,12 +86,10 @@ def parseOpts():
     parser.add_option("--cache-policy", dest="cachepolicy", metavar="POLICY",
                       default=None, help =
                       ("Cache-policy to use. Can be one of %s. "
-                       "Default is %s when no cachedir is set, o.w., "
-                       "the default is %s."
-                       % (", ".join(cachepolicies),
-                          cachepolicies[0],
+                       "The default is %s."
+                       % (", ".join(map(repr, cachepolicies)),
                           cachepolicies[defaultcachepolicy])))
-    
+
     options, args = parser.parse_args()
 
     if options.cachepolicy is not None:
@@ -138,7 +146,7 @@ if not (options.listchannels or options.configure):
             lines = codecs.open(options.configfile, "r", "iso-8859-1").readlines()
     except IOError, e:
         print u"Cannot open configurefile '%s' for input: %s." % (
-            options.output, e.strerror)
+            options.configfile, e.strerror)
         print u"Use --configure to configure the grabber."
         sys.exit(1)
         
@@ -209,9 +217,10 @@ url2fn = [
 
 def cleanCache():
     """If are using smart-cache: Delete all files in the cache that are
-    older than 15 days. o.w., do nothing."""
+    older than maxdays+1.5 days. o.w., do nothing."""
     global options
     global url2fn
+    global maxdays
 
     if options.cachepolicy != 1:
         return
@@ -222,7 +231,7 @@ def cleanCache():
     r = "^(%s)\.gz$" % "|".join(res)
     r = re.compile(r)
 
-    old = time.time() - 15*24*3600
+    old = time.time() - (maxdays+1.5)*24*3600
 
     root = options.cachedir
     for fn in sorted(os.listdir(root)):
