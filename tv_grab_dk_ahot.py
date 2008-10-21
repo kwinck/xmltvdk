@@ -82,7 +82,7 @@ To grab listings:               %prog [options]"""
     return options
 options = parseOpts()
 
-# ensure that we can do Danish characters on stderr as well : 
+# ensure that we can do Danish characters on stderr
 sys.stderr = codecs.getwriter(locale.getpreferredencoding())(sys.stderr)
 
 if options.verbose:
