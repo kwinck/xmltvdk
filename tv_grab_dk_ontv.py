@@ -747,9 +747,15 @@ def parseInfo (info, dic):
                 continue
             if not m.isdigit():
                 m = monthdic[m]
+            ot = t
             t = ".".join(s[-2:].zfill(2) for s in (d, m, y))
-            t = addTimeZone(time.strftime("%Y%m%d",time.strptime(t,"%d.%m.%y")))
-            dic["shown"] = t
+            try: 
+                t = addTimeZone(time.strftime("%Y%m%d",time.strptime(t,"%d.%m.%y")))
+                dic["shown"] = t
+            except ValueError, msg:
+                if options.verbose:
+                    # sometimes we get illegal time stamps like 31.11
+                    sys.stderr.write("Unable to parse timestampe, %s: %s\n" % (ot,msg))
             continue
         
         # Del der fixer linjer som
