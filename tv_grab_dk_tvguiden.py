@@ -1,11 +1,127 @@
 #!/usr/bin/python
-# -*- coding: UTF-8 -*-
+# -*- coding: utf-8 -*-
 #
-# $Id$
+VERSION = "$Id$"
+
+import codecs
+import datetime
+import locale
+import optparse
+import os
+import sys
+import time
+from urllib import urlopen
+import sys, time
+import re
+
+# ---------- Kig på evt. kommandolinieargumenter ---------- #
+grabbername = os.path.basename(sys.argv[0]).rstrip(".py")
+xmlcdir = os.path.expanduser("~/.xmltv/")
+defaultconffile = os.path.normpath(os.path.join(xmlcdir,grabbername + ".conf"))
+maxdays = 6
+
+def parseOpts():
+    global grabbername
+    global defaultconffile
+    global maxdays
+    global cachepolicies, defaultcachepolicy, defaultcachedir
+
+    parser = optparse.OptionParser()
+
+    parser.usage = """
+To show version:                %prog --version
+To show capabilities:           %prog --capabilities
+To list all available channels: %prog --list-channels [options]
+To configure:                   %prog --configure [options]
+To grab listings:               %prog [options]"""
+
+    xopts = [
+        ("version", "version", "Show the version of the grabber."),
+        ("capabilities", "capabilities", "Show xmltv capabilities."),
+        ("list-channels","listchannels","Output a list of all channels that data is "
+         "available for. The list is in xmltv-format."),
+        ("configure","configure","Prompt for which stations to download and "
+         "write the configuration file."),
+        ]
+    for (opt, var, text) in xopts:
+        parser.add_option("--"+opt, dest=var, action="store_true",
+                          default=False, help=text)
+
+    parser.add_option("--config-file", dest="configfile", metavar="FILE",
+                      default=defaultconffile, help =
+                      ("Set the name of the configuration file, the default "
+                       "is %s. This is the file written by --configure "
+                       "and read when grabbing." % defaultconffile))
+    
+    parser.add_option("--quiet", dest="verbose", action="store_false",
+                      default=True,
+                      help="Be quiet.")
+    parser.add_option("--output", dest="output", metavar="FILENAME",
+                      default="-",
+                      help=("File name of output xml file. If not provided "
+                            "or '-', stdout is used."))
+
+    parser.add_option("--days", dest="days", metavar="N", default=maxdays,
+                      type=int,
+                      help="When grabbing, grab N days rather than %d."
+                      % maxdays)
+    parser.add_option("--offset", dest="offset", metavar="N", default=0,
+                      type=int,
+                      help="Start grabbing at today + N days, 0 <= N")
+    
+    parser.add_option("--nodesc", dest="desc", action="store_false",
+                      default=True,
+                      help="Do not grab descriptions (this is a lot faster).")
+    parser.add_option("--debug", dest="debug", action="store_true",
+                      default=False,
+                      help="Show extra debug information.")
+
+
+    options, args = parser.parse_args()
+
+    if args:
+        parser.error("Unknown argument(s): " + ", ".join(map(repr, args)))
+
+    if options.days < 1:
+        parser.error("--days should be at least 1")
+    if options.days > maxdays:
+        sys.stderr.write("--days can be at most %d. Using --days=%d\n" % 
+                         (maxdays,maxdays))
+        options.days = maxdays
+    if options.offset < 0:
+        parser.error("--offset should be at least 0")
+    if options.offset >= maxdays:
+        parser.error("--offset can be at most %d" % (maxdays-1))
+
+    if len([x for _,x,_ in xopts if eval("options."+x)]) > 1:
+        parser.error("You can use at most one of the options: " +
+                     ", ".join(["--"+x for x,_ in xopts]))
+
+    if options.version:
+        global VERSION
+        print VERSION
+        print "For more information, see:"
+        print "http://niels.dybdahl.dk/xmltvdk/index.php/Forside"
+        sys.exit(0)
+    if options.capabilities:
+        print "baseline"
+        print "manualconfig"
+        sys.exit(0)
+
+    return options
+options = parseOpts()
+
+# ensure that we can do Danish characters on stderr
+sys.stderr = codecs.getwriter(locale.getpreferredencoding())(sys.stderr)
+
+if options.verbose:
+    log = sys.stderr.write
+else:
+    log = lambda x: x
 
 # ---------- Lav kanal liste ---------- #
 import sys
-sys.stderr.write("Henter kanalliste...\n")
+log("Fetching list of channels...\n")
 
 import urllib2
 opener = urllib2.build_opener(urllib2.HTTPCookieProcessor)
@@ -49,54 +165,158 @@ for value, genre in genres:
 
 # ---------- Spørg til konfigurationsfil ---------- #
 
-import os
-xmltvFolder = os.path.expanduser("~/.xmltv")
-configureFile = os.path.expanduser("~/.xmltv/tv_grab_dk_tvguiden_py.conf")
-
-if len(sys.argv) > 1 and sys.argv[1] == "--configure":
-    if not os.path.exists(xmltvFolder):
-        os.mkdir(xmltvFolder)
+configureFile = options.configfile
+if options.configure:
+    # ensure that we can do Danish characters
+    sys.stdout = codecs.getwriter(locale.getpreferredencoding())(sys.stdout)
+    folder = os.path.dirname(configureFile)
+    if not os.path.exists(folder):
+        os.makedirs(folder)
     if os.path.exists(configureFile):
-        answer = raw_input("Konfigurationsfilen eksisterer allerede. Vil du overskrive den? (y/N) ").strip()
-        if answer != "y":
+        answer = raw_input(u"'%s' does already exist. Do you want to overwrite it? (y/N) " % options.configfile).strip().lower()
+        if answer.strip().lower() != "y":
             sys.exit()
-    file = open(configureFile, "w")
-    for id, name in channels:
-        answer = raw_input("Tilføj %s (y/N) " % name).strip()
-        if answer == "y":
-            file.write("%s %s\n" % (id, name))
-        else: file.write("#%s %s\n" % (id, name))
+
+    file = codecs.open(configureFile, "w", "utf-8")
+    for cid, name in channels:
+        cid = cid.decode("iso-8859-1")
+        name = name.decode("iso-8859-1")
+        answer = raw_input(u"Add channel %s (y/N) " % name)
+        if not answer.strip().startswith("y"):
+            file.write(u"# ")
+        file.write(u"%s %s\n" % (cid, name))
     sys.exit()
 
-elif not os.path.exists(configureFile):
-    print "Kan ikke finde configfile: %s" % configureFile
-    sys.exit()
+elif not options.listchannels:
+    # try to read the file
+    try:
+        try: 
+            lines = codecs.open(options.configfile, "r", "utf-8").readlines()
+        except UnicodeDecodeError:
+            lines = codecs.open(options.configfile, "r", "iso-8859-1").readlines()
+    except IOError, e:
+        sys.stderr.write(u"Cannot open configurefile '%s' for input: %s.\n" % (
+                options.configfile, e.strerror))
+        sys.stderr.write(u"Use --configure to configure the grabber.\n")
+        sys.exit(1)
+        
+    chosenChannels = []
+    for line in lines:
+        line = line.strip()
+        if line and not line.startswith("#"):
+            chosenChannels.append(line.split(" ",1))        
+
+# ---------- Skift output, hvis ønsket ---------- #
+
+# ALSO after this point we only output XML - ensure that we can do
+# utf-8 output for the XMl
+
+if options.output != "-":
+    try:
+        sys.stdout = codecs.open(options.output, "w","utf-8")
+    except IOError, e:
+        sys.stderr.write(u"Cannot open '%s' for output: %s" % 
+                         (options.output, e.strerror))
+        sys.exit(1)
+else:
+    # Force utf-8 on output (otherwise we may get a UnicodeEncodeError
+    # when doing redirects, i.e., tv_grab_dk_ontv ... > filename)
+    sys.stdout = codecs.getwriter('UTF-8')(sys.stdout)
+
+# ---------- Lav --list-channels ---------- #
+
+if options.listchannels:
+
+    print u'<?xml version="1.0" encoding="UTF-8"?>'
+    print u"<!DOCTYPE tv SYSTEM 'xmltv.dtd'>"
+    print u"<tv generator-info-name=\"XMLTV\" generator-info-url=\"http://membled.com/work/apps/xmltv/\">"
+
+    for cid, name in channels:
+        cid = cid.decode("iso-8859-1")
+        name = name.decode("iso-8859-1")
+        print u"<channel id=\"%s\">" % cid
+        print u"    <display-name>%s</display-name>" % name
+        # no icon since this would require us to read extra data
+        print u"</channel>"
+
+    print u"</tv>"
+    sys.exit(0)
+
+# ---------- Funktioner til at lave tidszoner korrekt ---------- #
+# se evt. timefix.py
+
+class LocalTimeZone(datetime.tzinfo):
+    "Use timezone information according to the module time"
+    def __init__(self, is_dst = -1):
+        datetime.tzinfo.__init__(self)
+        if is_dst == -1:
+            self.is_dst = -1
+        else:
+            self.is_dst = int(bool(is_dst)) # ensure a 0 or 1 value
+
+    def _dtOffset(self, dt):
+        dtt = dt.replace(tzinfo = None).timetuple()[:-1] + (self.is_dst,)
+        tst = time.localtime(time.mktime(dtt))
+        return [-time.timezone, -time.altzone, None][tst[-1]]
+    
+    def utcoffset(self, dt):
+        offset = self._dtOffset(dt)
+        if offset is None: return None
+        return datetime.timedelta(0,offset)
+    
+    def dst(self, dt):
+        offset = self._dtOffset(dt)
+        if offset is None: return None
+        return datetime.timedelta(0,offset+time.timezone)
+    
+    def localize(self, dt, is_dst = -1):
+        return dt.replace(tzinfo = LocalTimeZone(is_dst))
+
+try:
+    # see: http://pytz.sourceforge.net/
+    import pytz
+    mytz = pytz.timezone("Europe/Copenhagen")
+except ImportError:
+    mytz = LocalTimeZone()
+
+def splitTimeStamp(ts):
+    assert(len(ts) in [8,12,14])
+    tss = [int(ts[i:i+2]) for i in range(2, len(ts),2)]
+    tss[0] += int(ts[:2])*100
+
+    return tuple(tss)
+
+def addTimeZone(ts, is_dst = -1):
+    global mytz
+
+    tss = splitTimeStamp(ts)
+    try:
+        dt = datetime.datetime(*tss)
+        ldt = mytz.localize(dt, is_dst)
+        return ts + " " + ldt.strftime("%z")
+    except IndexError:
+        # is returned only for non-existing points in time, e.g.
+        # at 2:30 when changing from winter to summer time.
+        sys.stderr.write("Warning: Cannot find time zone for %s.\n" % repr(ts))
+        return ts
 
 # ---------- Klasser til parsing ---------- #
 
-import time
+def noon(day):
+    """Return time tuple curresponding to noon of day, 
+    e.g. (2008,12,31,12,0,0,0,0,-1))"""
+    now = time.localtime() 
+    noon = time.mktime(now[:3] + (12,0,0,0,0,-1))
+    if 0 <= now[3] <= 5: 
+        day -= 1
+    return time.localtime(noon + day * 24*3600)[:3] + (12,0,0,0,0,-1)
+
 def parseTime (clock, day):
-    clocksplit = clock.split(".")
-    try:
-        hour = int(clocksplit[0]) + 1
-    except: sys.stderr.write("%s, %d"&(clock,day))
-    min = int(clocksplit[1])
-    
-    tt = time.localtime()
-    tl = [v for v in tt]
-    for i in range(3,8): tl[i] = 0
-    t = time.mktime(tl)
-    
-    t += day*24*60*60
-    t += hour*60*60
-    t += min*60
-    
-    t += time.mktime(time.localtime()) - time.mktime(time.gmtime(time.time()))
-    
-    tt = [i for i in time.gmtime(t)]
-    tt[8] = time.localtime()[8]
-    iso_time = time.strftime("%Y%m%d%H%M%S", tt)
-    return iso_time
+    """day is offset from today=0. clock is e.g. 01.40"""
+
+    date = time.strftime("%Y%m%d", noon(day))
+    res = date + clock.replace(".","")
+    return addTimeZone(res)
 
 import re
 datePattern = re.compile('fra \d{4}$')
@@ -114,12 +334,9 @@ class InfoBarParser(SGMLParser):
         text = text.replace("\n", "")
         text = text.replace("&nbsp;", " ")
         text = text.replace("&", "+")
-        text = text.replace("’", "'") #Nogen folk bruger accent i steddet for appostrof
+        text = text.replace("’", "'") #Nogle folk bruger accent i stedet for apostrof
         text = text.replace("<BR>", "\n")
-        text = text.decode("iso-8859-1").encode("utf-8")
-        text = text.replace("&oslash;", "ø")
-        text = text.replace("&aring;", "å")
-        text = text.replace("&aelih;", "æ")
+        text = text.decode("iso-8859-1")
 
         self.feed(text)
 
@@ -201,27 +418,19 @@ class InfoBarParser(SGMLParser):
         self.pieces[-1]["desc"] = self.pieces[-1]["desc"].strip()
 
 # ---------- Parse ---------- #
-print "<?xml version=\"1.0\" encoding=\"utf-8\" ?><!DOCTYPE tv SYSTEM 'xmltv.dtd'>"
-print "<tv generator-info-name=\"XMLTV\" generator-info-url=\"http://membled.com/work/apps/xmltv/\">"
-
-chosenChannels = []
-for line in open(configureFile):
-    line = line.strip()
-    if line.startswith("#"): continue
-    chosenChannels.append(line.split(" ",1))
+print u"<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n<!DOCTYPE tv SYSTEM 'xmltv.dtd'>"
+print u"<tv generator-info-name=\"XMLTV\" generator-info-url=\"http://membled.com/work/apps/xmltv/\">"
 
 groundUrl = "http://www.tv-guiden.dk/Diverse/DenLangeopdater.cfm?"
 
-sys.stderr.write("Starter...")
+log("Grabbing...")
 
 for channel, channelName in chosenChannels:
-    sys.stderr.write("\n%s"%channelName.strip().ljust(10))
+    log("\n%s"%channelName.strip().ljust(10))
     curl = groundUrl + "Station=%s&Land=0&Omtale=0" % channel
     
-    channelName = unicode(channelName, "iso-8859-1").encode("utf-8")
-    
-    for day in xrange(6): #Kunne i teorien starte fra -2, men hvem har brug for det?
-        sys.stderr.write(" "+str(day))
+    for day in xrange(options.offset, min(options.offset+options.days,maxdays)):
+        log(" "+str(day))
     
         opener.open(groundUrl + "Station=%s&Land=0&Dato=%s&Omtale=1" % (channel, str(day)))
         data = opener.open("http://www.tv-guiden.dk/Data/DenLangeOversigt.cfm").read()
@@ -231,41 +440,51 @@ for channel, channelName in chosenChannels:
         programmes = [p for p in programmes if p.has_key("time")]
         
         if day == 0:
-            print "<channel id=\"%s\"><display-name>%s</display-name>" % (channel, channelName)
-            print "<icon src=\"http://www.tv-guiden.dk%s\"/></channel>" % ibp.channelIcon
-        
+            print u"<channel id=\"%s\">" % channel
+            print u"    <display-name>%s</display-name>" % channelName
+            print u"    <icon src=\"http://www.tv-guiden.dk%s\"/>" % ibp.channelIcon
+            print u"</channel>"
+            
+        lastTime = ""
         for programme in programmes:
-            print "<programme channel=\"%s\" start=\"%s\">" % (channel, parseTime(programme["time"], day))
+            start = programme["time"]
+            if start < lastTime: # we are crossing midnight
+                day +=1 
+            lastTime = start
+            start = parseTime(start, day)
+            print u"<programme channel=\"%s\" start=\"%s\">" % (channel, start)
             
             if programme.has_key("instructor") or programme.has_key("actors"):
-                print "<credits>"
+                print u"<credits>"
                 if programme.has_key("instructor"):
-                    print "<director>%s</director>" % programme["instructor"]
+                    print u"<director>%s</director>" % programme["instructor"]
                 if programme.has_key("actors"):
                     for actor in programme["actors"]:
-                        print "<actor>%s</actor>" % actor
-                print "</credits>"
+                        print u"<actor>%s</actor>" % actor
+                print u"</credits>"
             
             if programme.has_key("episode"):
                 e = programme["episode"]-1
                 if programme.has_key("episodeCount"):
-                    ec = programme["episodeCount"]-1
-                else: ec = 0
-                print "<episode-num system=\"xmltv_ns\">.%d/%d.</episode-num>" % (ec,e)
+                    ec = programme["episodeCount"]
+                    s = ".%d/%d." % (e,ec)
+                else:
+                    s = ".%d." % e
+                print u"<episode-num system=\"xmltv_ns\">%s</episode-num>" % s
                 
             skiplist = ("time", "instructor", "actors", "episode", "episodeCount")
             for k, v in programme.iteritems():
                 if k in ("orgtitle", "orgsub-title"):
-                    print "<%s>%s</%s>" % (k[3:], v, k[3:])
+                    print u"<%s>%s</%s>" % (k[3:], v, k[3:])
                 elif k == "format":
-                    print "<video><aspect>%s</aspect></video>" % v
+                    print u"<video><aspect>%s</aspect></video>" % v
                 elif k in ("desc", "title", "category", "sub-title"):
-                    print "<%s lang=\"da\">%s</%s>" % (k,v,k)
+                    print u"<%s lang=\"da\">%s</%s>" % (k,v,k)
                 elif k in skiplist:
                     pass
-                else: print "<%s>%s</%s>" % (k,v,k)
-            print "</programme>"
+                else: print u"<%s>%s</%s>" % (k,v,k)
+            print u"</programme>"
             
-print "</tv>"
+print u"</tv>"
 
-sys.stderr.write("\nFærdig...\n")
+log("\nDone...!\n")
