@@ -472,7 +472,7 @@ def parseLarge(day, tz, data):
 def getDayProgs (id, day):
     data = readUrl("http://ontv.dk/?s=tvguide_kanal&guide=&type=&kanal=%s&date=%s" % (id, parseDay(day)))[1]
     if not data:
-        log("<-No data available for day %s->" % day)
+        log("[-No data available for day %s-]" % day)
         yield []; return
     
     data = data.decode("iso-8859-1")
@@ -481,7 +481,7 @@ def getDayProgs (id, day):
     
     programmes = dayexpr.findall(data, start, end)
     if not programmes:
-        log("<-No data available for day %s->" % day)
+        log("[-No data available for day %s-]" % day)
         yield []; return
 
     # check for summer -> winter tz at 02:00 -> 02:59
