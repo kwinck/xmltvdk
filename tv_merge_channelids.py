@@ -116,6 +116,10 @@ import re
 import sys
 import time
 
+if sys.version_info < (2,5):
+    sys.stderr.write("Python version 2.5 or later is required!\n")
+    sys.exit(1)
+
 # match element(s) with a specific attribute
 rElement = r'(?s)(<%s[^>]*%s="%s".*?</%s>[^<]*)' # % ("channel", "id", "tcm", "channel")
 
