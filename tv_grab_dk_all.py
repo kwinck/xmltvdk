@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# -*- coding: UTF-8 -*-
+# -*- coding: utf-8 -*-
 #
 # $Id$
 
@@ -72,7 +72,7 @@ needSplittitle = {
 
 #Navne pÃ¥ forskellige configfiler. 
 #Hvis en grabber ikke har et entry i denne liste, vil der ikke blive lavet nogen configfil automatisk. 
-#Grabberen skal i det tilfælde konfigureres særskilt.
+#Grabberen skal i det tilfÃ¦lde konfigureres sÃ¦rskilt.
 configFiles = {
     "tv2":"tv_grab_dk.conf",
     "tvtid":"tv_grab_dk_tvtid.conf",
