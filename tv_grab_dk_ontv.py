@@ -104,11 +104,16 @@ To grab listings:               %prog [options]"""
     if args:
         parser.error("Unknown argument(s): " + ", ".join(map(repr, args)))
 
-    if options.days < 1 or options.days > 15:
-        parser.error("--days should be between 1 and 15")
-
-    if options.offset < 0 or options.offset > 14:
-        parser.error("--offset should be between 0 and 14")
+    if options.days < 1:
+        parser.error("--days should be at least 1")
+    if options.days > maxdays:
+        sys.stderr.write("--days can be at most %d. Using --days=%d" % 
+                         (maxdays,maxdays))
+        options.days = maxdays
+    if options.offset < 0:
+        parser.error("--offset should be at least 0")
+    if options.offset >= maxdays:
+        parser.error("--offset can be at most %d" % (maxdays-1))
 
     if len([x for _,x,_ in xopts if eval("options."+x)]) > 1:
         parser.error("You can use at most one of the options: " +
@@ -129,12 +134,13 @@ To grab listings:               %prog [options]"""
     return options
 options = parseOpts()
 
+# ensure that we can do Danish characters on stderr
+sys.stderr = codecs.getwriter(locale.getpreferredencoding())(sys.stderr)
+
 if options.verbose:
-    log = sys.stderr
+    log = sys.stderr.write
 else:
-    class Null:
-        def write(self, _): pass
-    log = Null()
+    log = lambda x: x
 
 # ---------- Læs fra konfigurationsfil ---------- #
 
@@ -188,12 +194,12 @@ if not (options.listchannels or options.configure):
 if options.cachepolicy is None:
     # no cache policy set
     options.cachepolicy = cachepolicies.index("smart")
-    log.write("Setting cache policy to: %s\n" %
-              cachepolicies[options.cachepolicy])
+    log("Setting cache policy to: %s\n" %
+        cachepolicies[options.cachepolicy])
 if options.cachepolicy > 0 and options.cachedir is None:
     # no cachedir is set
     options.cachedir = defaultcachedir
-    log.write("Setting cache directory to: %s\n" % options.cachedir)
+    log("Setting cache directory to: %s\n" % options.cachedir)
 
 if options.cachedir is not None:
     if not os.path.isdir(options.cachedir):
@@ -224,7 +230,7 @@ def cleanCache():
 
     if options.cachepolicy != 1:
         return
-    log.write("Cleaning cache: %s\n" % options.cachedir)
+    log("Cleaning cache: %s\n" % options.cachedir)
     count = 0
     
     res = [re.escape(pre) + ".*" for _,pre,_ in url2fn]
@@ -241,8 +247,11 @@ def cleanCache():
             if ftime < old:
                 os.unlink(lfn) # delete it
                 count += 1
-
-    log.write("Cleaning done: %d old file(s) deleted\n" % count)
+    
+    if count == 1:
+        log("Cleaning done: %d old file deleted\n" % count)
+    else:
+        log("Cleaning done: %d old files deleted\n" % count)
 
 if not (options.configure or options.listchannels):
     cleanCache()
@@ -271,7 +280,7 @@ def urlopen(url, forceRead = False):
     level, fn = urlFileName(url)
     if level <= options.cachepolicy:
         if os.path.isfile(fn) and not (forceRead and options.cachepolicy==1):
-            # log.write("Using data in %s\n" % fn)
+            # log("Using data in %s\n" % fn)
             data = gzip.open(fn).read()
             return (True, data)
         else:
@@ -382,8 +391,8 @@ def ts2string(tt, is_dst = -1):
 
 # warn if we are running in the middle of the night
 if 4 <= time.localtime()[3] < 6:
-    log.write("Warning: You may get unexpected results when running "
-              "this script between 04:00 and 06:00.\n")
+    log("Warning: You may get unexpected results when running "
+        "this script between 04:00 and 06:00.\n")
 
 # ---------- Funktioner til parsing ---------- #
 
@@ -463,7 +472,7 @@ def parseLarge(day, tz, data):
 def getDayProgs (id, day):
     data = readUrl("http://ontv.dk/?s=tvguide_kanal&guide=&type=&kanal=%s&date=%s" % (id, parseDay(day)))[1]
     if not data:
-        log.write("\nIngen data for %s dag %s\n" % (id, day))
+        log("<-No data available for day %s->" % day)
         yield []; return
     
     data = data.decode("iso-8859-1")
@@ -472,7 +481,7 @@ def getDayProgs (id, day):
     
     programmes = dayexpr.findall(data, start, end)
     if not programmes:
-        log.write("\nIngen data for %s dag %s\n" % (id, day))
+        log("<-No data available for day %s->" % day)
         yield []; return
 
     # check for summer -> winter tz at 02:00 -> 02:59
@@ -484,7 +493,7 @@ def getDayProgs (id, day):
            int(pp[1]) > int(p[1]):
             # there must have been a tz change:
             tzDefault = lambda j, first=i: j < first
-            log.write("Summer/winter tz change detected")
+            log("Summer/winter tz change detected\n")
             break
     else:
         tzDefault = lambda j: -1 # no tzchange detected
@@ -499,13 +508,13 @@ def getDayProgs (id, day):
         small = parseSmallData(sh, sm, title, day, tz)
         cused, data = readUrl("http://ontv.dk/programinfo/%s" % info)
         if not data:
-            log.write("\nTimeout for program %s\n" % info)
+            log("\nTimeout for program %s\n" % info)
             yield small
             continue
 
         large = parseLarge(day, tz, data)
         if not large:
-            log.write("\nMisdannet infomation for program %s\n" % info)
+            log("\nCannot parse infomation for program %s\n" % info)
             yield small
             continue
         
@@ -516,15 +525,16 @@ def getDayProgs (id, day):
         lak = [large[key] for key in keys]
         if smk != lak:
             if not cused:
-                log.write("Warning: Unexpected %s != %s\n" % (str(smk),str(lak)))
+                log("Warning: Unexpected %s != %s\n" % (str(smk),str(lak)))
                 yield large
             else:
                 # cache is maybe not new enough - force a reread
-                log.write("Flushing cached copy, since %s != %s\n" % 
-                          (str(smk),str(lak)))
+                #log("Flushing cached copy, since %s != %s\n" % 
+                #    (str(smk),str(lak)))
+                log("!")
                 cu_data = readUrl("http://ontv.dk/programinfo/%s" % info, True)
                 if not cu_data or not cu_data[1]:
-                    log.write("\nTimeout for program %s\n" % info)
+                    log("\nTimeout for program %s\n" % info)
                     yield small
                 else:
                     large = parseLarge(day, tz, cu_data[1])
@@ -585,7 +595,7 @@ def parseStars (stars, dic):
         if star == "full": noStars += 2
         elif star == "half": noStars += 1
     if noStars > maxStars:
-        log.write(str(dic)+" \t"+str(stars))
+        log(str(dic)+" \t"+str(stars))
     dic["stars"] = str(noStars)
 
 titleexpr = re.compile(r'^(.*?)(?:\s+(med\s+.*?))?(?:\s*\(\s*(\d+)*\s*:?\s*(\d+)*\s*\)\s*[-:]?\s*(.*?))?(?:\s+-\s*(.*?))?(?::\s*(.*?))?(?:\s*\(\s*(\d+)*\s*:?\s*(\d+)*\s*\))?$')
@@ -612,7 +622,7 @@ def parseTitle (title, dic):
     m = titleexpr.match(title)
     if m == None:
         dic["titleda"] = title
-        log.write("Titlen %s passer ikke til udtryk\n" % title)
+        log(u"Could not parse the title \"%s\"\n" % title)
         return
         
     title, sub, ep, af, sub1, sub2, sub3, ep1, af1 = m.groups()
@@ -638,7 +648,7 @@ def simpleParseTitle (title, dic):
     m = simptitleexpr.match(title)
     if m == None:
         dic["title"] = title
-        log.write("Titlen %s passer ikke til simpeltudtryk\n" % title)
+        log(u"Could not 'simple'parse the title \"%s\"\n" % title)
         return
         
     title, sub, sub1 = m.groups()
@@ -932,10 +942,6 @@ else:
     # when doing redirects, i.e., tv_grab_dk_ontv ... > filename)
     sys.stdout = codecs.getwriter('UTF-8')(sys.stdout)
 
-# ensure that we can do Danish characters on stderr as well : 
-sys.stderr = codecs.getwriter(locale.getpreferredencoding())(sys.stderr)
-
-
 # ---------- Lav --list-channels ---------- #
 
 if options.listchannels:
@@ -968,7 +974,7 @@ oneDic = {"utxt":"<subtitles type=\"teletext\" />",
 credits = ("director", "actor", "writer", "adapter", "producer",
                    "presenter", "commentator", "guest")
 
-log.write("Parsing data: \n")
+log("Parsing data: \n")
 print u"<?xml version=\"1.0\" ?><!DOCTYPE tv SYSTEM 'xmltv.dtd'>"
 print u"<tv generator-info-name=\"XMLTV\" generator-info-url=\"http://membled.com/work/apps/xmltv/\">"
 
@@ -980,10 +986,10 @@ for id, channel in chosenChannels:
     print "</channel>"
 
 for id, channel in chosenChannels:
-    log.write("\n%s:"%channel)
+    log("\n%s:"%channel)
 
-    for day in range(options.offset, min(options.offset+options.days,15)):
-        log.write(" %d" % day)
+    for day in range(options.offset, min(options.offset+options.days,maxdays)):
+        log(" %d" % day)
         for programme in getDayProgs(id, day):
             if not programme: continue
             print u"<programme channel=\"%s\" start=\"%s\"" % (id, programme["start"]),
@@ -1010,4 +1016,4 @@ for id, channel in chosenChannels:
     
 print u"</tv>"
 
-log.write(u"\nDone.\n")
+log(u"\nDone.\n")
