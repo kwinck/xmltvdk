@@ -245,7 +245,7 @@ def parseProgramme(xmlp):
 def parseTimeSpans(ts, first, last):
     '''Generate list of days from the day before first until a couple of
     days after last'''
-    start = time.mktime(time.localtime(first)[:3] + (12,0,0,0,0,-1)) - 24*3600*2
+    start = time.mktime(time.localtime(first)[:3] + (12,0,0,0,1,-1)) - 24*3600*2
 
     days = []
     for d in range(int(start), int(last)+3600*24*3,3600*24):

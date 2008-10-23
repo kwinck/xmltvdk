@@ -304,12 +304,12 @@ def addTimeZone(ts, is_dst = -1):
 
 def noon(day):
     """Return time tuple curresponding to noon of day, 
-    e.g. (2008,12,31,12,0,0,0,0,-1))"""
+    e.g. (2008,12,31,12,0,0,0,1,-1))"""
     now = time.localtime() 
-    noon = time.mktime(now[:3] + (12,0,0,0,0,-1))
+    noon = time.mktime(now[:3] + (12,0,0,0,1,-1))
     if 0 <= now[3] <= 5: 
         day -= 1
-    return time.localtime(noon + day * 24*3600)[:3] + (12,0,0,0,0,-1)
+    return time.localtime(noon + day * 24*3600)[:3] + (12,0,0,0,1,-1)
 
 def parseTime (clock, day):
     """day is offset from today=0. clock is e.g. 01.40"""

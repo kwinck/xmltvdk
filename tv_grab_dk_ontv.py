@@ -398,12 +398,12 @@ if 4 <= time.localtime()[3] < 6:
 
 def noon(day):
     """Return time tuple curresponding to noon of day, 
-    e.g. (2008,12,31,12,0,0,0,0,-1))"""
+    e.g. (2008,12,31,12,0,0,0,1,-1))"""
     now = time.localtime() 
-    noon = time.mktime(now[:3] + (12,0,0,0,0,-1))
+    noon = time.mktime(now[:3] + (12,0,0,0,1,-1))
     if 0 <= now[3] <= 5: 
         day -= 1
-    return time.localtime(noon + day * 24*3600)[:3] + (12,0,0,0,0,-1)
+    return time.localtime(noon + day * 24*3600)[:3] + (12,0,0,0,1,-1)
 
 def parseDay (day):
     n = noon(day)
@@ -413,7 +413,7 @@ def parseDay (day):
 def jumptime (days = 0, hours = 0, minutes = 0):
     # first find correct day
     day = noon(days)[:3]
-    return day + (hours,minutes,0,0,0,-1)
+    return day + (hours,minutes,0,0,1,-1)
 
 cdataexpr = re.compile(r"<!\[CDATA\[([^<>]*)\]\]>")
 retries = 3
