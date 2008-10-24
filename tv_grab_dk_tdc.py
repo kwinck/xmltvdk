@@ -819,25 +819,17 @@ class TDCGrabber(BaseTVGrabber):
 		if programme:
 			# Convert all times to real date+time objects
 			for index in range(len(programme)):
-				# Play it safe around shift from summer to winter time (daylight savings)
-				# Hmm, but then the programme can overlap...
-				# If a time do not exist, suppose it is because it is without daylight savings
-				# so try to add an hour and localize that
+				# Localization is done later, since this can only
+				# be done after we have moved programs to the correct day
 				if programme[index][self.infoMap['start']]:
-					try:
-						programme[index][self.infoMap['start']] = self.dktz.localize( self.makeTime(programme[index][self.infoMap['start']], day),  is_dst=True)
-					except IndexError:
-						programme[index][self.infoMap['start']] = self.dktz.localize( self.makeTime(programme[index][self.infoMap['start']], day) + datetime.timedelta(hours=1),  is_dst=True)
-				if programme[index][self.infoMap['stop']]:
-					try:
-						programme[index][self.infoMap['stop']] = self.dktz.localize( self.makeTime(programme[index][self.infoMap['stop']], day), is_dst=False)
-					except IndexError:
-						programme[index][self.infoMap['stop']] = self.dktz.localize( self.makeTime(programme[index][self.infoMap['stop']], day) + datetime.timedelta(hours=1), is_dst=False)
-				
-				if not programme[index][self.infoMap['start']]:
+					programme[index][self.infoMap['start']] = self.makeTime(programme[index][self.infoMap['start']], day)
+				else:
 					sys.stderr.write("Error: No start time! Skipping programme\n")
 					return []
-				if not programme[index][self.infoMap['stop']]:
+
+				if programme[index][self.infoMap['stop']]:
+					programme[index][self.infoMap['stop']] = self.makeTime(programme[index][self.infoMap['stop']], day)
+				else:
 					sys.stderr.write("Warning: No end time. - Will construct one from next start time.\n")
 			# Check for midnight shift. It could look like either of the next three lines:
 			# yesterday, today, today, today, tomorrow, tomorrow -end
@@ -893,6 +885,20 @@ class TDCGrabber(BaseTVGrabber):
 						else:
 							hasEnd = False
 							lastTime = programme[index][self.infoMap['start']]
+
+			# Now, we are ready for localization
+			for index in range(len(programme)):
+				# Play it safe around shift from summer to winter time (daylight savings)
+				# Hmm, but then the programme can overlap...
+				# If a time do not exist, suppose it is because it is without daylight savings
+				# so try to add an hour and localize that
+				for tag in ['start','stop']:
+					if programme[index][self.infoMap[tag]]:
+						try:
+							programme[index][self.infoMap[tag]] = self.dktz.localize(programme[index][self.infoMap[tag]], is_dst = True)
+						except IndexError:
+							programme[index][self.infoMap[tag]] = self.dktz.localize(programme[index][self.infoMap[tag]] + datetime.timedelta(hours=1), is_dst = True)
+
 		return programme
 	
 	def removeOutOfTime(self, programme):
