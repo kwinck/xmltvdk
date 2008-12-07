@@ -69,7 +69,7 @@ class drbetaReader:
                 channelelm = self.doc.createElement("channel")
                 channelelm.setAttribute("id", channel)
                 if self.config.has_option("channelnames", channel):
-                    channelname = self.config.get("channelnames", channel)
+                    channelname = self.config.get("channelnames", channel).decode("UTF-8")
                     displayname = self.doc.createElement("display-name")
                     displayname.appendChild(self.doc.createTextNode(channelname))
                     channelelm.appendChild(displayname)
@@ -87,7 +87,7 @@ class drbetaReader:
                     pe.setAttribute("start", programme["pg_start"])
                     pe.setAttribute("stop", programme["pg_stop"])
                     title = self.doc.createElement("title")
-                    title.appendChild(self.doc.createTextNode(programme["ppu_title"]))
+                    title.appendChild(self.doc.createTextNode(programme["ppu_title"].decode("UTF-8")))
                     pe.appendChild(title)
                     self.tv.appendChild(pe)
                     pass
@@ -95,10 +95,9 @@ class drbetaReader:
 
     def getChannelList(self):
         channels = self.jsonCmd("getChannels", {"type":"tv"})
-        print(repr(channels))
         for channel in channels["result"]:
-            id = channel["source_url"].decode("UTF-8")
-            name = channel["name"].decode("UTF-8")
+            id   = channel["source_url"]
+            name = channel["name"]
             self.channels.append((id, name))
         self.channels.sort(cmp=lambda x,y: cmp(x[1].lower(), y[1].lower()))
 
@@ -116,7 +115,7 @@ import ConfigParser
 def getConfig(configdir, configfile):
     # Build default config
     defaults = {"cachedir":configdir,"waitseconds":5}
-    config = ConfigParser.ConfigParser(defaults)
+    config = ConfigParser.SafeConfigParser(defaults)
 
     # Create if it doesn't exist
     if not os.path.exists(configdir):
@@ -141,7 +140,7 @@ def configureChannels(c, configfile):
     c.getChannelList()
 
     for channel in c.channels:
-        answer = raw_input(u"Add channel %s (y/N) " % (channel[1]))
+        answer = raw_input(u"Add channel %s (y/N) " % (channel[1].decode("UTF8")))
         if answer.strip().startswith("y"):
             c.config.set("channels", channel[0], 'on')
         else:
