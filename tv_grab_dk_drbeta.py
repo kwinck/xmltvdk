@@ -39,12 +39,17 @@ import sys
 import json
 import urllib
 import urllib2
+import re
+import os
+import datetime
+import time
 class drbetaReader:
     version = "0.1"
     channels = []
-    jsonurl = "http://beta.dr.dk/Programoversigt2008/DBService.ashx"
-    _channelgroups = []
-    _jsonid = 1
+    channelinfo = {}
+    __jsonurl = "http://beta.dr.dk/Programoversigt2008/DBService.ashx"
+    __jsonid = 1
+    __dateformat = "%Y%m%d%H%M%S %z"
 
     def __init__(self, config, verbose):
         self.config = config
@@ -56,59 +61,236 @@ class drbetaReader:
         self.doc.appendChild(self.tv)
         self.verbose = verbose
 
-    def _output(self, string, verbose=True):
+    def __output(self, string, verbose=True):
         if self.verbose or not verbose:
             print >> sys.stderr, (string)
+        
+    def fromISOdatetime(self, string):
+        class SimpleTZ(datetime.tzinfo):
+            def __init__(self, offset=0, name=""):
+                if name == "":
+                    if offset < 0:
+                        name = "-"
+                    else:
+                        name = "+"
+                    name += "%02d:%02d" % (int(abs(offset)/60), abs(offset)%60)
+                self.__name = name
+                self.__offset = datetime.timedelta(minutes=offset)
+            def utcoffset(self, dt):
+                return self.__offset
+            def tzname(self, dt):
+                return self.__name
+            def dst(self, dt):
+                return datetime.timedelta()
+
+        isoregexp = re.compile("""
+        (?P<year>[0-9]{4})?-?       # Year
+        (?P<month>[0-9]{2})?-?      # Month
+        (?P<day>[0-9]{2})?          # Day
+        T?
+        (?P<hour>[0-9]{2})?:?       # Hour
+        (?P<minute>[0-9]{2})?:?     # Minute
+        (?P<second>[0-9]{2})?:?     # Second
+        .?(?P<microsecond>[0-9]+)?  # Microsecond
+        (?P<timezone>(?:Z|(?P<sign>[+-])(?P<tzhours>[0-9]{2})(?::?(?P<tzminutes>[0-9]{2}))?))? # Timezone
+        """, re.VERBOSE)
+        m = isoregexp.match(string)
+        matches = m.groupdict(0)
+        if matches["timezone"] != 0:
+            if matches["timezone"] == "Z":
+                offset = 0
+            else:
+                offset = 60*int(matches["tzhours"]) + int(matches["tzminutes"])
+                if matches["sign"] == "-":
+                    offset *= -1
+            tz = SimpleTZ(offset, matches["timezone"])
+        else:
+            tz = None
+
+        ret = datetime.datetime(
+                int(matches["year"]),
+                int(matches["month"]),
+                int(matches["day"]),
+                int(matches["hour"]),
+                int(matches["minute"]),
+                int(matches["second"]),
+                int(matches["microsecond"]),
+                tz
+        )
+        return ret
 
     def getListings(self, days=[1,]):
+        # Make sure we have the full channel info available
+        if len(self.channelinfo) == 0:
+            self.getChannelList()
+
         # Create channel elements at the top
         channels = []
         for channel in self.config.options("channels"):
             if self.config.get("channels", channel) == "on":
+                channelinfo = self.channelinfo[channel]
                 channels.append(channel)
                 channelelm = self.doc.createElement("channel")
                 channelelm.setAttribute("id", channel)
+
+                # Get channelname from the config file so the user can change displayname easily
                 if self.config.has_option("channelnames", channel):
                     channelname = self.config.get("channelnames", channel).decode("UTF-8")
-                    displayname = self.doc.createElement("display-name")
-                    displayname.appendChild(self.doc.createTextNode(channelname))
-                    channelelm.appendChild(displayname)
+                else:
+                    channelname = channelinfo["name"].decode("UTF-8")
+                # Remove the single letters denoting country in front of channelnames
+                channelname = re.search("^(?P<countryletter>.:)?(?P<channelname>.*)", channelname).group("channelname")
+                channelelm.appendChild(self.__elm("display-name", channelname))
+
+                # Some channel define an URL for the channel's official website
+                if "www_url" in channelinfo:
+                    channelelm.appendChild(self.__elm("url", channelinfo["www_url"]))
+                
+                # icon_name is set if there's no icon for the channel
+                if not "icon_name" in channelinfo:
+                    iconname = os.path.basename(channel)
+                    channelelm.appendChild(self.__elm("icon", "http://beta.dr.dk/Programoversigt2008/Images/Logos/%s.gif" % urllib.quote(iconname)))
+
                 self.tv.appendChild(channelelm)
-                pass
 
         dates = self.jsonCmd("availableBroadcastDates")
-        for daynum in days:
-            date = dates["result"][daynum - 1]
+        today = self.jsonCmd("currentBroadcastDate")
+        dates = dates[dates.index(today):dates.index(today)+len(days)]
+        for date in dates:
+            self.__output("Getting listings for %s:" % self.fromISOdatetime(date).strftime("%Y-%m-%d"))
             for channel in channels:
                 schedule = self.jsonCmd("getSchedule", {"channel_source_url":channel, "broadcastDate":date})
-                for programme in schedule["result"]:
+                self.__output("  %s (%d programmes)" % (self.channelinfo[channel]["name"].decode("UTF-8"), len(schedule)))
+                for programme in schedule:
+                    ### Top-level element ###
                     pe = self.doc.createElement("programme")
                     pe.setAttribute("channel", channel)
-                    pe.setAttribute("start", programme["pg_start"])
-                    pe.setAttribute("stop", programme["pg_stop"])
-                    title = self.doc.createElement("title")
-                    title.appendChild(self.doc.createTextNode(programme["ppu_title"].decode("UTF-8")))
-                    pe.appendChild(title)
+                    if "pg_start" in programme:
+                        pe.setAttribute("start", self.fromISOdatetime(programme["pg_start"]).strftime(self.__dateformat))
+                    if "pg_stop" in programme:
+                        pe.setAttribute("stop", self.fromISOdatetime(programme["pg_stop"]).strftime(self.__dateformat))
+
+                    ### Title ###
+                    # Do we use ppu_title or pro_title?
+                    pe.appendChild(self.__elm("title", programme["pro_title"].decode("UTF-8")))
+                    # Where does prd_series_title and pg_series_name fit in?
+                    # Examples:
+                    # 'prd_series_title':'Murder, She Wrote - s. 1+2 - eps. 1-43'
+                    # 'pg_series_name': 'Hun så et mord'
+                    # 'ppu_title_alt': 'Murder, She Wrote'
+                    # 'ppu_punchline': 'Amerikansk krimiserie fra 1984.'
+
+                    ### Repeat? ###
+                    if programme["ppu_isrerun"]:
+                        pe.appendChild(self.__elm("previously-shown"))
+
+                    ### Video ###
+                    # We always add the video element
+                    video = self.__elm("video")
+                    video.appendChild(self.__elm("present", "yes"))
+                    if "ppu_video" in programme:
+                        video.appendChild(self.__elm("aspect", programme["ppu_video"].decode("UTF-8")))
+                    pe.appendChild(video)
+
+                    ### Audio ###
+                    # We always add the audio element
+                    audio = self.__elm("audio")
+                    audio.appendChild(self.__elm("present", "yes"))
+                    if "ppu_audio" in programme:
+                        if programme["ppu_audio"] == "MONO":
+                            val = "no"
+                        elif programme["ppu_audio"] == "STEREO":
+                            val = "yes"
+                        audio.appendChild(self.__elm("stereo", val))
+                    pe.appendChild(audio)
+
+                    ### Subtitle ###
+                    # I'm not quite sure what the different values of this field mean
+                    # TTV
+                    # TTV_FOREIGN
+                    # EXTERN
+                    # FOREIGN
+                    # NO_TXT
+                    # Presumably all but the last means some subtitling is available 
+                    if "ppu_subtext_type" in programme and programme["ppu_subtext_type"] != "NO_TXT":
+                        subtitles = self.__elm("subtitles")
+                        val = programme["ppu_subtext_type"]
+                        if val == "TTV" or val == "TTV_FOREIGN":
+                            type = "teletext"
+                        else:
+                            type = "onscreen"
+                        subtitles.setAttribute("type", type)
+                        pe.appendChild(subtitles)
+
+                    ### Episode ###
+                    if "prd_episode_number" in programme:
+                        eps = self.__elm("episode-num", str(programme["prd_episode_number"]))
+                        eps.setAttribute("system", "onscreen")
+                        pe.appendChild(eps)
+
+                    ### Description ###
+                    # This includes credits
+                    if "ppu_description" in programme:
+                        desc = programme["ppu_description"].decode("UTF-8")
+                        pe.appendChild(self.__elm("desc", desc))
+
+                    ### The rest ###
+                    # These keys have a direct key -> element mapping
+                    mapping = [
+                            ("pro_category", "category"),
+                            ("prd_genre_text", "category"),
+                            ("ppu_www_url", "url"),
+                            ("prd_prodcountry", "country"),
+                            ]
+                    for key, elm in mapping:
+                        if key in programme:
+                            val = programme[key].decode("UTF-8")
+                            if elm == "url":
+                                val = "http://" + val
+                            pe.appendChild(self.__elm(elm, val))
+
+                    ### All done ###
                     self.tv.appendChild(pe)
-                    pass
+
+    # Convenience function that creates an element with an optional single text node as child
+    def __elm(self, name, value = None):
+        ret = self.doc.createElement(name)
+        if value != None:
+            ret.appendChild(self.doc.createTextNode(value))
+        return ret
 
 
     def getChannelList(self):
         channels = self.jsonCmd("getChannels", {"type":"tv"})
-        for channel in channels["result"]:
+        for channel in channels:
             id   = channel["source_url"]
             name = channel["name"]
             self.channels.append((id, name))
+            self.channelinfo[id] = channel
         self.channels.sort(cmp=lambda x,y: cmp(x[1].lower(), y[1].lower()))
 
-    def jsonCmd(self, method, params = {}):
+    def jsonCmd(self, method, params = {}, retry = 0):
         # We could use system.listMethods to check that cmd["method"]
         # is still recognised by the server?
-        cmd = urllib.quote(json.JsonWriter().write({"id":self._jsonid, "method":method, "params":params}))
-        ret = json.read(urllib2.urlopen(self.jsonurl, cmd).read())
+        cmd = urllib.quote(json.JsonWriter().write({"id":self.__jsonid, "method":method, "params":params}))
+        try:
+            ret = json.read(urllib2.urlopen(self.__jsonurl, cmd).read())
+        except urllib2.URLError, e:
+            if e.reason[0] == 104:
+                if retry < 5:
+                    self.__output("%s - will retry in 5 seconds" % e.reason[1])
+                    time.sleep(5)
+                    return self.jsonCmd(method, params, retry + 1)
+                else:
+                    self.__output("%s - giving up" % e.reason[1])
+            print >> sys.stderr, ("URL Error %d: %s (%s)" % (e.reason[0], e.reason[1], self.__jsonurl))
+            sys.exit(3)
         # xxx: Check the ret["result"] and ret["id"] for sanity?
-        self._jsonid += 1
-        return ret
+        if ret["id"] != self.__jsonid:
+            print >> sys.stderr, ("JSON-RPC problem: ids don't match (%d vs %d)" % (ret["id"], self.__jsonid))
+            sys.exit(4)
+        self.__jsonid += 1
+        return ret["result"]
 
 
 import ConfigParser
@@ -116,6 +298,8 @@ def getConfig(configdir, configfile):
     # Build default config
     defaults = {"cachedir":configdir,"waitseconds":5}
     config = ConfigParser.SafeConfigParser(defaults)
+    # Don't modify config keys (default is to lower-case them)
+    config.optionxform = str
 
     # Create if it doesn't exist
     if not os.path.exists(configdir):
