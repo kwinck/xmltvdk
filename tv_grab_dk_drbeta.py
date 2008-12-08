@@ -55,6 +55,7 @@ class drbetaReader:
         self.config = config
         self.verbose = verbose
         self.output = output
+        self.__nextdownload = datetime.datetime.now()
 
     def __output(self, string, verbose=True):
         if self.verbose or not verbose:
@@ -64,11 +65,7 @@ class drbetaReader:
         class SimpleTZ(datetime.tzinfo):
             def __init__(self, offset=0, name=""):
                 if name == "":
-                    if offset < 0:
-                        name = "-"
-                    else:
-                        name = "+"
-                    name += "%02d:%02d" % (int(abs(offset)/60), abs(offset)%60)
+                    name = "%+03d:%02d" % divmod(offset, 60)
                 self.__name = name
                 self.__offset = datetime.timedelta(minutes=offset)
             def utcoffset(self, dt):
@@ -199,10 +196,11 @@ class drbetaReader:
                     audio = self.__elm("audio")
                     audio.appendChild(self.__elm("present", "yes"))
                     if "ppu_audio" in programme:
-                        if programme["ppu_audio"] == "MONO":
-                            val = "no"
-                        elif programme["ppu_audio"] == "STEREO":
-                            val = "yes"
+                        if programme["ppu_audio"] in ("MONO", "STEREO", "SURROUND"):
+                            val = programme["ppu_audio"].lower()
+                        else:
+                            val = programme["ppu_audio"]
+                            print >> sys.stderr, ("Warning: unrecognised stereoness: %s" % val)
                         audio.appendChild(self.__elm("stereo", val))
                     pe.appendChild(audio)
 
@@ -274,11 +272,17 @@ class drbetaReader:
         self.channels.sort(cmp=lambda x,y: cmp(x[1].lower(), y[1].lower()))
 
     def jsonCmd(self, method, params = {}, retry = 0):
+        if self.__nextdownload > datetime.datetime.now():
+            diff = self.__nextdownload - datetime.datetime.now()
+            secs = diff.microseconds/1000000.0 + diff.seconds + diff.days*24*3600
+            time.sleep(secs)
+
         # We could use system.listMethods to check that cmd["method"]
         # is still recognised by the server?
         cmd = urllib.quote(json.JsonWriter().write({"id":self.__jsonid, "method":method, "params":params}))
         try:
             ret = json.read(urllib2.urlopen(self.__jsonurl, cmd).read())
+            self.__nextdownload = datetime.datetime.now() + datetime.timedelta(seconds=self.config.getfloat("DEFAULT", "waitseconds"))
         except urllib2.URLError, e:
             # Retry on the following errors:
             # 104 - Connection reset
@@ -303,7 +307,7 @@ class drbetaReader:
 import ConfigParser
 def getConfig(configdir, configfile):
     # Build default config
-    defaults = {"cachedir":configdir,"waitseconds":5}
+    defaults = {"waitseconds":2.0}
     config = ConfigParser.SafeConfigParser(defaults)
     # Don't modify config keys (default is to lower-case them)
     config.optionxform = str
