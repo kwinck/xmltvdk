@@ -34,7 +34,7 @@
 # http://beta.dr.dk/Programoversigt2008/DBService.ashx
 
 
-from xml.dom.minidom import Document
+from SimpleXMLWriter import SimpleXMLWriter
 import sys
 import json
 import urllib
@@ -51,15 +51,10 @@ class drbetaReader:
     __jsonid = 1
     __dateformat = "%Y%m%d%H%M%S %z"
 
-    def __init__(self, config, verbose):
+    def __init__(self, config, verbose, output):
         self.config = config
-        self.doc = Document()
-        self.tv = self.doc.createElement("tv")
-        self.tv.setAttribute("source-info-name", "DR.dk")
-        self.tv.setAttribute("source-info-url", "http://beta.dr.dk/programoversigt2008/")
-        self.tv.setAttribute("generator-info-name", "tv_grab_dk_drbeta/%s" % self.version)
-        self.doc.appendChild(self.tv)
         self.verbose = verbose
+        self.output = output
 
     def __output(self, string, verbose=True):
         if self.verbose or not verbose:
@@ -120,6 +115,12 @@ class drbetaReader:
         return ret
 
     def getListings(self, days=[1,]):
+        self.doc = SimpleXMLWriter(self.output, indent=2)
+        self.tv = self.doc.createElement("tv")
+        self.tv.setAttribute("source-info-name", "DR.dk")
+        self.tv.setAttribute("source-info-url", "http://beta.dr.dk/programoversigt2008/")
+        self.tv.setAttribute("generator-info-name", "tv_grab_dk_drbeta/%s" % self.version)
+        # self.doc.appendChild(self.tv)
         # Make sure we have the full channel info available
         if len(self.channelinfo) == 0:
             self.getChannelList()
@@ -152,6 +153,7 @@ class drbetaReader:
                     channelelm.appendChild(self.__elm("icon", "http://beta.dr.dk/Programoversigt2008/Images/Logos/%s.gif" % urllib.quote(iconname)))
 
                 self.tv.appendChild(channelelm)
+
 
         dates = self.jsonCmd("availableBroadcastDates")
         today = self.jsonCmd("currentBroadcastDate")
@@ -224,8 +226,9 @@ class drbetaReader:
 
                     ### Episode ###
                     if "prd_episode_number" in programme:
-                        eps = self.__elm("episode-num", str(programme["prd_episode_number"]))
+                        eps = self.__elm("episode-num")
                         eps.setAttribute("system", "onscreen")
+                        self.doc.addText(str(programme["prd_episode_number"]))
                         pe.appendChild(eps)
 
                     ### Description ###
@@ -251,12 +254,13 @@ class drbetaReader:
 
                     ### All done ###
                     self.tv.appendChild(pe)
+        self.doc.closeAll()
 
     # Convenience function that creates an element with an optional single text node as child
     def __elm(self, name, value = None):
         ret = self.doc.createElement(name)
         if value != None:
-            ret.appendChild(self.doc.createTextNode(value))
+            self.doc.addText(value)
         return ret
 
 
@@ -276,7 +280,10 @@ class drbetaReader:
         try:
             ret = json.read(urllib2.urlopen(self.__jsonurl, cmd).read())
         except urllib2.URLError, e:
-            if e.reason[0] == 104:
+            # Retry on the following errors:
+            # 104 - Connection reset
+            # 110 - Connection timed out
+            if e.reason[0] == 104 or e.reason[0] == 110:
                 if retry < 5:
                     self.__output("%s - will retry in 5 seconds" % e.reason[1])
                     time.sleep(5)
@@ -367,7 +374,12 @@ def main(argv):
         sys.exit()
 
     # Create our reader instance
-    c = drbetaReader(config, options.verbose)
+    if options.output == "-":
+        output = sys.stdout
+    else:
+        output = open(options.output, 'w')
+        output = codecs.getwriter("UTF-8")(output)
+    c = drbetaReader(config, options.verbose, output)
 
     # Do channel configuration if requested, or no channels are defined
     if options.configure or not config.has_section("channels"):
@@ -375,12 +387,6 @@ def main(argv):
     # Otherwise, we get the tv listings
     else:
         c.getListings(days=range(1,int(options.days) + 1))
-        if options.output == "-":
-            c.doc.writexml(sys.stdout, addindent="  ", newl="\n")
-        else:
-            output = open(options.output, 'w')
-            output = codecs.getwriter("UTF-8")(output)
-            c.doc.writexml(output, addindent="  ", newl="\n")
 
 
 # run the main if we're not being imported:
