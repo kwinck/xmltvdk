@@ -918,7 +918,8 @@ if options.configure:
     print
     print "Reading channel data from the internet."
     for id, name in parseChannels():
-        answer = raw_input(u"Add channel %s (y/N) " % name).strip()
+        nameascii = name.encode("ascii","replace")
+        answer = raw_input(u"Add channel %s (y/N) " % nameascii).strip()
         if answer == "y":
             lines.append(u"channel %d %s\n" % (id, name))
         else:
