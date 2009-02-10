@@ -454,7 +454,6 @@ def parseLarge(day, tz, data):
     title = largetitleexpr.search(data)    
     if not title:
         log("no title found.")
-        open("/tmp/test.html","w").write(data)
         return None
     title = urllib.unquote(title.group(1)).decode("iso-8859-1")
 
