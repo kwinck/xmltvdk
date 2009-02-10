@@ -143,6 +143,11 @@ if options.verbose:
 else:
     log = lambda x: x
 
+# as per 2009.02.10 this does no longer work
+sys.stderr.write(u"2009.02.10: Denne grabber virker ikke mere!\n")
+sys.stderr.write(u"2009.02.10: Ontv har opdateret deres hjemmeside.\n")
+sys.exit(1)
+
 # ---------- Læs fra konfigurationsfil ---------- #
 
 if not (options.listchannels or options.configure):
