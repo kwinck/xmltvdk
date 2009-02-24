@@ -202,7 +202,6 @@ if options.configure:
             sys.exit()
 
     cg = ChannelGrabber (pagedata)
-    # channels = map(lambda x: x.decode("iso-8859-1"), cg.channels) # TODO REMOVE
     channels = map(lambda x: x.decode("utf-8"), cg.channels)
 
     file = codecs.open(configureFile, "w", "utf-8")
@@ -413,7 +412,7 @@ def parseProgramme (programme):
         return programmeDic
     
     url = "http://tv.jubii.dk/Program.aspx?id=%s" % programme["id"]
-    data = readUrl(url).decode("iso-8859-1") # TODO added by svalle :)
+    data = readUrl(url).decode("iso-8859-1")
     
     if not data:
         return programmeDic
@@ -422,7 +421,6 @@ def parseProgramme (programme):
     end = data.find("</span>", start)
     desc = data[start:end]
     desc = ampPattern.sub("&amp;", desc)
-    # desc = desc.decode("iso-8859-1") # TODO .encode("utf-8")
     
     if not desc == "Ingen beskrivelse.":
         for line in desc.split("<BR>"):
@@ -480,12 +478,11 @@ for channel in chosenProgrammes.keys():
 
 for channel in chosenProgrammes.keys():
     # channel = channel.decode("utf-8")
-    log(u"\n%s: " % repr(channel)) # TODO
+    log(u"\n%s: " % repr(channel))
 
     if len(chosenProgrammes[channel]) <= 0:
         continue
     
-    # TODO REMOVE print len(chosenProgrammes[channel])
     squareVar = len(chosenProgrammes[channel]) / sqaresPerProgramme
     for programme, i in iteratelists(chosenProgrammes[channel],
                                      xrange(len(chosenProgrammes[channel]))):
@@ -513,7 +510,7 @@ for channel in chosenProgrammes.keys():
         for key, value in keyDic.iteritems():
             if pDic.has_key(key):
                 print u"<%s>%s</%s>" % (value,
-                                        pDic[key], # TODO
+                                        pDic[key],
                                         value.split(" ")[0])
         
         if len([c for c in credits if c in programme]) > 0:
