@@ -379,22 +379,51 @@ foreach (@config_lines) {
 ######################################################################
 # subroutine definitions
 
+# get json - 1st parameter is the URL
+sub get_json {
+    use JSON;
+    my $url = shift;
+    my $json_t = get_url($url);
+
+    my $json = new JSON(autoconv => 0, pretty => 1, indent => 2, utf8 => 1);
+    return $json->decode($json_t);
+}
+
+#
+# get value of "10am" of the requested day $day days in the future
+# 10am may change, e.g., when we reach summer time. :)
+# 10am is 9am GMT UTC
+#
+# Actually the correct time to use can be found in the middle of
+#     http://tvtid.tv2.dk/js/filterForm.js.php/index.js
+# which contains a line like
+#     var values=new Array(1235466000,1235552400,1235638800,1235725200,1235811600,1235898000,1235984400,1236070800)
+# with times for (yesterday, today, tomorrow, ...)
+#
+sub get_start_of_day {
+    # TODO fetch the correct value to use from the javascript page as described above
+    my $day = shift;
+    my $secs_per_day = 3600*24;
+    my $delta = 3600*9;
+    my $start = (int(time()/$secs_per_day)+$day)*$secs_per_day+$delta;
+    return $start;
+}
+
+sub get_json_for_day {
+    my $day = shift;
+    my $t = get_start_of_day(0);
+    my $url = "http://tvtid.tv2.dk/allekanaler/get.php/day-$t.html";
+    my $js_ref = get_json($url);
+    my @js = @$js_ref;
+    return @js;
+}
+
 # get channel listing
 sub get_channels {
     my %channels;
-
-    my $sec_per_day = 24*60*60;
-    my $eight_hours = 8*60*60; # Off by two for some reason
-    my $now8 = int(time()/$sec_per_day)*$sec_per_day+$eight_hours;
-
-    use JSON;
-    my $url = 'http://tvtid.tv2.dk/allekanaler/get.php/day-'.$now8.'.html';
-    my $json_t = get_url($url);
-    #print $url."\n\n".$json_t."\n\n";
-    my $json = new JSON(autoconv => 0, pretty => 1, indent => 2, utf8 => 1);
-    my $js_ref = $json->decode($json_t);
-    my @js = @$js_ref;
-
+    
+    my @js = get_json_for_day(0);
+    
     foreach my $elm (@js)
     {
 	my $id = $elm->{logo};
@@ -457,10 +486,6 @@ sub get_people {
 ######################################################################
 # begin main program
 
-my $sec_per_day = 24*60*60;
-my $eight_hours = 8*60*60; # Off by two for some reason
-my $now8 = int(time()/$sec_per_day)*$sec_per_day+$eight_hours;
-
 Date_Init('TZ=utc');
 
 foreach $ch_did (@channels) {
@@ -473,20 +498,8 @@ foreach $ch_did (@channels) {
 
 for (my $i = $opt_offset;$i<($opt_offset + $opt_days);$i++) {
 
-    my $sec_per_day = 24*60*60;
-    my $eight_hours = 8*60*60; # Off by two for some reason
-    my $day8 = int(time()/$sec_per_day+$i)*$sec_per_day+$eight_hours;
-
-    
     my $day = UnixDate(DateCalc(parse_date('now'), "+ $i days"), '%Q');
-
-    use JSON;
-    my $url = 'http://tvtid.tv2.dk/allekanaler/get.php/day-'.$day8.'.html';
-    my $json_t = get_url($url);
-
-    my $json = new JSON(autoconv => 0, pretty => 1, indent => 2, utf8 => 1);
-    my $js_ref = $json->decode($json_t);
-    my @js = @$js_ref;
+    my @js = get_json_for_day($i);
 
     foreach my $elm (@js)
     {
