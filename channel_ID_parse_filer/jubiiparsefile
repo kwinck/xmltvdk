@@ -1,4 +1,3 @@
-ï»¿DR1	dr1
 DR1	dr1
 TV 2	tv2
 TV3	tv3
@@ -14,19 +13,19 @@ DK4	dk4
 Disney Channel sca.	disney_channel
 TV/MIDT-VEST	tv2_midt_vest
 TV 2/Bornholm	tv2_bornholm
-Kanal KÃ¸benhavn	kanal_kobenhavn
+Kanal København	kanal_kobenhavn
 Kanal 4 Fyn	tvdk_fyn
-TV 2 / Ã˜stjylland	tv2_ostjylland
+TV 2 / Østjylland	tv2_ostjylland
 TV1000 Nordic	tv1000_nordic
 Kanal 4 Aalborg	tvdk_aalborg
 TV2/NORD	tv2_nord
 CANAL+ FILM	canal_film1
 C MORE FILM	c_more_film
-Radio Ã…dalen	radio_aadalen
+Radio Ådalen	radio_aadalen
 CANAL+ SPORT	canal_sport
 TV1000 Classic	tv1000_classic
 TV1000 Family	tv1000_family
-Kanal 4 Ã˜stjylland	tvdk_aarhus
+Kanal 4 Østjylland	tvdk_aarhus
 Viasat Sport 3	viasat_sport_3
 Viasat Explorer	viasat_explorer
 Viasat Sport 1	viasat_sport
@@ -48,7 +47,7 @@ MTV	mtv
 Eurosport	eurosport
 Jetix	jetix
 Voice TV	the_voice_tv
-Discovery Civilisation	discovery_civilization
+Discovery Civilisation	discovery_world
 BBC Prime	bbc_prime
 TV4 Sverige	sverige_4
 TV3 Norge	norge_3
@@ -80,4 +79,4 @@ Discovery Science	discovery_science
 NRK1	nrk_1
 BBC World	bbc_world
 _Playboy Channel	playboy_channel
-TV2 Ã˜st	tv2_ost
+TV2 Øst	tv2_ost
