@@ -143,6 +143,12 @@ def get_file_encoding(f):
 	else:
 		return locale.getpreferredencoding()
 # End of snatch
+def get_good_file_encoding(f):
+	# ensure that we can encode Danish characters etc using the preferred encoding
+	for enc in [get_file_encoding(f), locale.getpreferredencoding()]:
+		if u'\xe6'.encode(enc,'ignore') != '':
+			return enc
+	return 'utf-8'
 
 class BaseTVGrabber:
 	
@@ -1183,9 +1189,9 @@ if __name__ == "__main__":
 	#sys.stderr = codecs.getwriter(get_file_encoding(sys.stderr))(sys.stderr)
 	# End of snatch
 	
-	sys.stderr = codecs.getwriter(get_file_encoding(sys.stderr))(sys.stderr)
+	sys.stderr = codecs.getwriter(get_good_file_encoding(sys.stderr))(sys.stderr)
 	if sys.stdout.isatty():
-		sys.stdout = codecs.getwriter(get_file_encoding(sys.stdout))(sys.stdout)
+		sys.stdout = codecs.getwriter(get_good_file_encoding(sys.stdout))(sys.stdout)
 	else:
 		sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
 	
