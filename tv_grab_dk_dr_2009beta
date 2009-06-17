@@ -84,7 +84,7 @@ sub main()
 	stage_sub => \&config_stage,
 	listchannels_sub => \&list_channels,
 	load_old_config_sub => \&load_old_config,
-	version => '$Id: ' . $grabber_name . ',v 0.99 2009-06-16',
+	version => '$Id: ' . $grabber_name . ',v 0.99.1 2009-06-17',
 	description => "TV Oversigten fra Danmarks Radios (2009 beta) ".
 	    "(beta.dr.dk/programoversigt2009)",
 				      } );
@@ -118,7 +118,7 @@ sub main()
 	    "Please run the grabber with --configure.\n";
 	exit 1;
     }
-    
+
     my %writer_args = ( encoding => 'utf-8' );
     if (defined $opt->{'output'}) {
 	my $fh = new IO::File ">".$opt->{'output'};
@@ -381,7 +381,7 @@ sub get_schedules($$)
 	# oversat alle TV5's titler til dansk, så den
 	# "alternative" titel er dansk for alle disse
 	# programmer mens standard titlen er på
-	# originalsprogent. Weird. Men det gælder kun
+	# originalsproget. Weird. Men det gælder kun
 	# TV5 så jeg har ikke giddet fixe det når jeg
 	# alligevel aldrig kunne finde på at se fransk
 	# TV :)
@@ -459,6 +459,27 @@ sub get_schedules($$)
 	    $p{'video'}{'aspect'} = $listing->{'ppu_video'};
 	}
 
+	########################################
+	# Undertekster
+	if ($listing->{'ppu_subtext_type'}) {
+	    if ($listing->{'ppu_subtext_type'} =~ '^TTV' ||
+		$listing->{'ppu_subtext_type'} eq 'EXTERN') {
+		push @{$p{subtitles}},{type=>'teletext'};
+	    } elsif ($listing->{'ppu_subtext_type'} ne 'NOTXT') {
+		push @{$p{subtitles}},{type=>'onscreen'};
+	    }
+	}
+
+	########################################
+	# Credits
+	if ($listing->{'ppu_credits'}) {
+	    my $credits = parse_dr_credits($listing->{'ppu_credits'});
+	    if ($credits) {
+		$p{'credits'} = $credits;
+	    }
+	}
+
+
 	# Sanity checks..
 	if (!$p{'start'}) { warning("No 'START' attribute"); next; }
 	if (!$p{'stop'}) { warning("No 'START' attribute"); next; }
@@ -468,6 +489,46 @@ sub get_schedules($$)
 	push(@results, \%p);
     }
     return \@results;
+}
+
+sub parse_dr_credits($)
+{
+    my ( $input ) = @_;
+    my %c = ();
+
+    #print "\nInput: $input\n";
+
+    my $director;
+    ( $director ) = $input =~ m/Instruktion:\s*(.*)/;
+    if ($director) {
+	$input =~ s/\s*Instruktion:.*//;
+	$director =~ s/.?\s*$//;
+    }
+    #print "Director: " . $director . "\n" if $director;
+    $c{'director'} = [ $director ] if $director;
+    my @actors = ();
+    my ( $actorlist ) = $input =~ /Medvirkende:\s*(.*)\s*/;
+    if ($actorlist) {
+	for my $entry (split(/\s*(?:og|,)\s*/, $actorlist)) {
+	    #print "ENTRY: '$entry'\n";
+	    if ($entry =~ m/(.*?)\s*:\s*(.*?)\.?\s*$/) {
+		#print "Actor: $2 Role: $1\n";
+		# Her smider vi rollenavnet væk selvom
+		# XMLTV understøtter det som attribute.
+		# Desværre understøtter xmltv.pm det ikke :(
+		#push(@actors, [ $2, $1 ]);
+		push(@actors, $2);
+	    } else {
+		#print "Actor: $entry\n";
+		push(@actors, $entry);
+	    }
+	}
+    }
+    if (@actors) {
+	$c{'actor'} = \@actors;
+    }
+    #print Dumper \%c;
+    return \%c;
 }
 
 # Her udnytter vi at der i ppu_punchline tit står
