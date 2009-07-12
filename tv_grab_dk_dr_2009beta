@@ -83,7 +83,7 @@ sub main()
 	capabilities => [qw/baseline manualconfig tkconfig apiconfig/],
 	stage_sub => \&config_stage,
 	listchannels_sub => \&list_channels,
-	load_old_config_sub => \&load_old_config,
+	#load_old_config_sub => \&load_old_config,
 	version => '$Id: ' . $grabber_name . ',v 0.99.1 2009-06-17',
 	description => "TV Oversigten fra Danmarks Radios (2009 beta) ".
 	    "(beta.dr.dk/programoversigt2009)",
@@ -316,9 +316,11 @@ sub get_schedules($$)
 
     my @schedules = ();
 
+    my $src = $chan->{'_source_url'};
+    $src =~ s/([^A-Za-z0-9])/sprintf("%%%02X", ord($1))/seg;
     my $url = $conf->{'root-url'}->[0] .
 	'DBService.ashx/getSchedule?channel_source_url=' .
-	$chan->{'_source_url'} . '&broadcastDate=' .$date;
+	$src . '&broadcastDate=' .$date . "&random=".rand();
     #print "Get: $url\n";
     my $content = get($url) || return 0;
     my $parsed = &parse(\$content) || die "Error parsing channel list";
@@ -328,7 +330,7 @@ sub get_schedules($$)
     if ( ("HASH" ne ref (@$parsed[0])) ||
 	 ("ARRAY" ne ref(@$parsed[0]->{'result'}))) {
 	    warning("Parser barfed while processing channel " .
-		    $chan->{'_name'}. " date ". $date . " (empty result?)\n");
+		    $chan->{'_name'}. " date ". $date . " (empty result?) URL: $url\n" . $content . "\n");
 	    #print STDERR Dumper $parsed;
 	return \@results;
     }
