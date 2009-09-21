@@ -23,6 +23,11 @@
 #
 # Kun testet på Linux. Beta version :)
 # Kommentarer til: Thomas Horsten <thomas@horsten.com>
+#
+# History
+#   Per Baekgaard <baekgaard@b4net.dk> 2009-08-13 20:39 CEST
+#      - Minor changes supporting the released version on dr.dk
+#
 
 use strict;
 use warnings;
@@ -41,14 +46,14 @@ use DateTime;
 
 $ua->agent("xmltv/$XMLTV::VERSION");
 
-my $grabber_name = 'tv_grab_dk_dr_2009beta';
+my $grabber_name = 'tv_grab_dk_dr_2009';
 my $id_prefix = '.dr.dk';
 
-# TODO: Change this when DR's schedule comes out of beta
-my $default_root_url = 'http://beta.dr.dk/programoversigt2009/';
+# HASDONE: Change this when DR's schedule comes out of beta
+my $default_root_url = 'http://www.dr.dk/tjenester/programoversigt/';
 
 my %grabber_tags = ( 'source-info-url'	   =>
-		     'http://beta.dr.dk/programoversigt2009/',
+		     'http://www.dr.dk/tjenester/programoversigt/',
 		     'source-info-name'	   =>
 		     'DR TV Oversigt',
 		     'generator-info-name' =>
@@ -85,8 +90,8 @@ sub main()
 	listchannels_sub => \&list_channels,
 	#load_old_config_sub => \&load_old_config,
 	version => '$Id: ' . $grabber_name . ',v 0.99.1 2009-06-17',
-	description => "TV Oversigten fra Danmarks Radios (2009 beta) ".
-	    "(beta.dr.dk/programoversigt2009)",
+	description => "TV Oversigten fra Danmarks Radios (2009) ".
+	    "(www.dr.dk/tjenester/programoversigt)",
 				      } );
 
     if (not defined( $conf->{'root-url'} )) {
@@ -163,7 +168,7 @@ sub main()
 		    &warning("Unknown channel $cid\n");
 		} else {
 		    #print "ID: $cid Name: " .
-		    #	$chan->{'display-name'}[0][0]."\n";
+		    	#$chan->{'display-name'}[0][0]."\n";
 		    my $schedules = get_schedules($chan, $fmtdate);
 		    if ("ARRAY" ne ref($schedules)) {
 			warning("Schedules for $cid on $fmtdate not valid - empty?\n");
