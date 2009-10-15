@@ -6,7 +6,8 @@
 import os
 import codecs
 
-#Rækkefølge grabbere skal merges
+#Rækkefølge grabbere skal merges - "dr_2009" ikke tilføjet endnu da det mangler
+# at blive testet ordentligt, men du kan tilføje den manuelt.
 mergeorder = ("jubii","tvtid","dr","tdc","ahot","tvguiden","ontv","swedb")
 mergeorderpath=r"./mergeorder.conf"
 if os.path.isfile(mergeorderpath):
@@ -45,7 +46,8 @@ grabberNames = {
     "tv_grab_dk_jubii.py":"jubii",
     "tv_grab_dk_tvguiden.py":"tvguiden",
     "tv_grab_dk_dr":"dr",
-    "tv_grab_se_swedb":"swedb"
+    "tv_grab_se_swedb":"swedb",
+    "tv_grab_dk_dr_2009":"dr_2009"
 }
 
 #Hvilke programmer grabbere skal køres med
@@ -58,13 +60,15 @@ interpreters = {
     "ontv":"python",
     "jubii":"python",
     "tvguiden":"python",
-    "swedb":"perl"
+    "swedb":"perl",
+    "dr_2009":"perl"
 } 
 
 #Om grabberen skal have splittitle kørt
 needSplittitle = {
     "tv2":True,
     "dr":True,
+    "dr_2009":True,
     "tdc":True
 }
 
@@ -81,19 +85,22 @@ configFiles = {
     "ontv":"tv_grab_dk_ontv.conf",
     "jubii":"tv_grab_dk_jubii.conf",
     "tvguiden":"tv_grab_dk_tvguiden_py.conf",
-    "tdc":"tv_grab_dk_tdc.conf"
+    "tdc":"tv_grab_dk_tdc.conf",
+    "dr_2009":"tv_grab_dk_dr_2009.conf"
 }
 
 #Her kan der defineres linier som placeres i starten af conf filen:
 extraConfigLines = {
-    "tdc":"firstLang=Original\ncreditsInDesc=Yes\nsplitTitles=Yes"
+    "tdc":"firstLang=Original\ncreditsInDesc=Yes\nsplitTitles=Yes",
+    "dr_2009":"accept-copyright-disclaimer=accept\ninclude-radio=0\nroot-url=http://www.dr.dk/tjenester/programoversigt/"
 }
 
 #Særlige funktioner til oversættelse af parsefil -> configfil
 configAdaptors = {
     "tv2":   lambda t, a: "channel %s %s" % (t[:3], a),
     "tvtid": lambda t, a: "channel %s %s" % (t[:3], a),
-    "dr":    lambda t, a: "channel %s %s" % (t[:3], a)
+    "dr":    lambda t, a: "channel %s %s" % (t[:3], a),
+    "dr_2009":    lambda t, a: "channel=%s" % (t)
 }
 
 #Om grabberen bruger "id name" eller bare "id"
@@ -161,7 +168,8 @@ if not '--noupdate' in opts:
                 "swedbparsefile",
                 "tdcparsefile",
                 "tvtidparsefile",
-                "tvguidenparsefile")
+                "tvguidenparsefile",
+                "dr_2009parsefile")
             for filename in parsefiles:
                 print "Copying "+filename+" from sourceforge"
                 contents=urllib2.urlopen("http://xmltvdk.svn.sourceforge.net/viewvc/*checkout*/xmltvdk/trunk/channel_ID_parse_filer/"+filename).read()
@@ -190,6 +198,7 @@ if not '--noupdate' in opts:
                 "tv_grab_dk_tdc.conf",
                 "tv_grab_dk_tvguiden.py",
                 "tv_grab_dk_tvtid",
+                "tv_grab_dk_dr_2009",
                 "xmltvanalyzer.py",
                 "xmltvmerger.py")
             for filename in files:
@@ -237,6 +246,20 @@ if "dr" in mergeorder:
         print "Using DR grabber in "+grabbers["dr"]
     else:
         print "Kan ikke finde tv_grab_dk_dr grabberen. Fortsaetter uden."
+#kigger efter tv_grab_dk_dr_2009 grabberen:
+if "dr_2009" in mergeorder:
+    drpath="./tv_grab_dk_dr_2009"
+    if not os.path.isfile(drpath):
+        drpath="/usr/bin/tv_grab_dk_dr_2009"
+        if not os.path.isfile(drpath):
+            drpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_dk_dr_2009"
+            if not os.path.isfile(drpath):
+                drpath=r"C:\Perl\site\lib\xmltv\tv_grab_dk_dr_2009"
+    if os.path.isfile(drpath):
+        grabbers["dr"]=drpath
+        print "Using DR_2009 grabber in "+grabbers["dr"]
+    else:
+        print "Kan ikke finde tv_grab_dk_dr_2009 grabberen. Fortsaetter uden."
 #kigger efter tv_grab_se_swedb grabberen:
 if "swedb" in mergeorder: 
     swedbpath="./tv_grab_se_swedb"
