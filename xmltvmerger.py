@@ -85,10 +85,14 @@ for channel in file2.getElementsByTagName("channel"):
     id = channel.attributes["id"].value
     file2ChannelDic[id] = channel
 
+file1ChannelDic = {}
 for channel in file1.getElementsByTagName("channel"):
     id = channel.attributes["id"].value
-    if not id in file2ChannelDic: continue
+    file1ChannelDic[id] = channel
     
+    if not id in file2ChannelDic:
+        continue
+
     file1tagnames = [tagname(n)[0] for n in getNodesNamed(channel.childNodes, "display-name")]
     file2tagnames = [tagname(n) for n in getNodesNamed(file2ChannelDic[id].childNodes, "display-name")]
     for file2tagname, file2node in file2tagnames:
@@ -149,6 +153,13 @@ file2Programmes = getFileProgrammes(file2)
 
 #For hver kanal fil2 har, som fil1 ikke har, skal kanalerne+programmerne kopieres over.
 f1tv = file1.getElementsByTagName("tv")[0]
+
+# Kopier kanaler fra 2 som ikke er i 1
+for channel in file2.getElementsByTagName("channel"):
+    id = channel.attributes["id"].value
+    if not id in file1ChannelDic:
+        f1tv.insertBefore(channel, f1tv.firstChild)
+
 for channel, f2progs in file2Programmes.iteritems():
     if not channel in file1Programmes:
         for programme in f2progs:
