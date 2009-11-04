@@ -257,7 +257,7 @@ if options.listchannels:
 # ---------- Læs fra konfigurationsfil ---------- #
 
 chosenChannels = []
-for line in codecs.open(configureFile, "r", "utf-8"):
+for line in codecs.open(configureFile, "r","iso-8859-1"):
     line = line.strip()
     if not line.startswith("#"):
         chosenChannels.append(line.encode("utf-8"))
