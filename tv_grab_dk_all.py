@@ -5,11 +5,13 @@
 
 import os
 import codecs
+import sys
 
 #Rækkefølge grabbere skal merges - "dr_2009" ikke tilføjet endnu da det mangler
 # at blive testet ordentligt, men du kan tilføje den manuelt.
 mergeorder = ("jubii","tvtid","dr","tdc","ahot","tvguiden","ontv","swedb")
-mergeorderpath=r"./mergeorder.conf"
+
+mergeorderpath = os.path.normpath(os.path.join(os.path.dirname(sys.argv[0]),"mergeorder.conf"))
 if os.path.isfile(mergeorderpath):
     try:
         print "Found merge order configuration in "+mergeorderpath
@@ -98,7 +100,7 @@ extraConfigLines = {
 #Særlige funktioner til oversættelse af parsefil -> configfil
 configAdaptors = {
     "tv2":   lambda t, a: "channel %s %s" % (t[:3], a),
-    "tvtid": lambda t, a: "channel %s %s" % (t[:3], a),
+    "tvtid": lambda t, a: "channel %s %s" % (t, a),
     "dr":    lambda t, a: "channel %s %s" % (t[:3], a),
     "dr_2009":    lambda t, a: "channel=%s" % (t)
 }
@@ -256,8 +258,8 @@ if "dr_2009" in mergeorder:
             if not os.path.isfile(drpath):
                 drpath=r"C:\Perl\site\lib\xmltv\tv_grab_dk_dr_2009"
     if os.path.isfile(drpath):
-        grabbers["dr"]=drpath
-        print "Using DR_2009 grabber in "+grabbers["dr"]
+        grabbers["dr_2009"]=drpath
+        print "Using DR_2009 grabber in "+grabbers["dr_2009"]
     else:
         print "Kan ikke finde tv_grab_dk_dr_2009 grabberen. Fortsaetter uden."
 #kigger efter tv_grab_se_swedb grabberen:
@@ -319,6 +321,16 @@ def configure (file, channels):
     sys.exit()
 
 #     -----     load and save TDC configuration files     -----     #
+import traceback
+def formatExceptionInfo(maxTBlevel=5):
+    cla, exc, trbk = sys.exc_info()
+    excName = cla.__name__
+    try:
+        excArgs = exc.__dict__["args"]
+    except KeyError:
+        excArgs = "<no args>"
+    excTb = traceback.format_tb(trbk, maxTBlevel)
+    return (excName, excArgs, excTb)
 
 def loadChannels (filename):
     loadLocals = {}
@@ -366,6 +378,7 @@ for grabber, parsefile in parsedicts.iteritems():
         try:
             print "Configuring "+grabber+" grabber"
             if grabber=="tdc":
+                print "Loading config file:" + configFiles[grabber]
                 tdcset={}
                 for ch in ccset:
                     if ch in parsedicts[grabber]:
@@ -392,7 +405,8 @@ for grabber, parsefile in parsedicts.iteritems():
                         f.write("%s\n" % parsedChannel)
                 f.close()
         except:
-            print "Can not configure "+grabber+" grabber"
+            print "Can not configure "+grabber+" grabber: ", formatExceptionInfo()
+
 
 df = "data"+os.path.sep
 if not os.path.exists(df):
