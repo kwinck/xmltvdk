@@ -8,6 +8,9 @@
 999.dr.dk	kanal5
 DR1.dr.dk	dr1
 DR2.dr.dk	dr2
+TVH.dr.dk	dr_hd
+TVK.dr.dk	dr_kultur
+TVR.dr.dk	dr_ramasjang
 ans.dr.dk	animal_planet
 ard.dr.dk	ard
 arg.dr.dk	arte
@@ -31,7 +34,7 @@ diS.dr.dk	discovery_science
 diT.dr.dk	discovery_travel
 dk3.dr.dk	tv3
 dk4.dr.dk	dk4
-dru.dr.dk	dru
+dru.dr.dk	drupdate
 dsc.dr.dk	discovery_channel
 dsf.dr.dk	dsf_sport
 ess.dr.dk	eurosport
