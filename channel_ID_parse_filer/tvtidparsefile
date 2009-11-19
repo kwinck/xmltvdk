@@ -69,11 +69,12 @@ tv2nord	tv2_nord
 tv2norge	norge_2
 tv2oest	tv2_ost
 tv2oestjylland	tv2_ostjylland
-tv2sport	ZZ missing
 tv2zulu	zulu
+tv2sport	tv2_sport
 tv3	tv3
 tv3norge	norge_3
 tv3plus	3plus
+tv3puls	3puls
 tv3sverige	sverige_3
 tv4sverige	sverige_4
 tv5mondeeurope	tv_5
