@@ -29,6 +29,7 @@ drramasjang	dr_ramasjang
 drupdate	drupdate
 dsf	dsf_sport
 eurosport	eurosport
+eurosport2	eurosport2
 hallmarkchannel	hallmark
 jetix	jetix
 kanal4	kanal4
@@ -45,8 +46,10 @@ playhousedisney	play_disney
 prosieben	pro_7
 rtl	rtl
 rtlii	rtl_2
+rushhd	rush_hd
 sat1	sat_1
 sbsnet	sbsnet
+showtime	showtime
 skandinavia	skandinavia
 superrtl	super_rtl
 svt1	sverige_1
@@ -83,12 +86,13 @@ tvsyd	tv2_syd
 vh1	vh1
 viasatexplorer	viasat_explorer
 viasatgolf	viasat_golf
+viasathistory	viasat_history
 viasatnaturecrime	viasat_nature
 viasatsport2	viasat_sport_2
 viasatsport3	viasat_sport_3
 voicetv	the_voice_tv
 vox	vox
 zdf	zdf
-canal_9	canal_9
+canal9	canal_9
 6eren	6eren
 disneyxd	disneyxd
