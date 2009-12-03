@@ -302,7 +302,7 @@ sub get_available_dates()
     my $url = $conf->{'root-url'}->[0] .
 	'DBService.ashx/availableBroadcastDates';
     #print "Get: $url\n";
-    my $content = get($url) || return 0;
+    my $content = Encode::encode_utf8(get($url)) || return 0;
     my $parsed = &parse(\$content) || die "Error parsing date list";
      #print Dumper $parsed;
      my %available_dates = ();
@@ -327,7 +327,7 @@ sub get_schedules($$)
 	'DBService.ashx/getSchedule?channel_source_url=' .
 	$src . '&broadcastDate=' .$date . "&random=".rand();
     #print "Get: $url\n";
-    my $content = get($url) || return 0;
+    my $content = Encode::encode_utf8(get($url)) || return 0;
     my $parsed = &parse(\$content) || die "Error parsing channel list";
     #push(@results, @{@$parsed[0]->{'result'}});
     #print Dumper $parsed;
@@ -652,7 +652,7 @@ sub get_dr_channel_list($)
 	my $url = $conf->{'root-url'}->[0] .
 	    'DBService.ashx/getChannels?type=' . $type;
 	#print "Get: $url\n";
-	my $content = get($url) || return 0;
+	my $content = Encode::encode_utf8(get($url)) || return 0;
 	my $parsed = &parse(\$content) || die "Error parsing channel list";
 	#print Dumper $parsed;
 	push(@results, @{@$parsed[0]->{'result'}});
