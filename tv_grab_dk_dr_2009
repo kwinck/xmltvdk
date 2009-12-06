@@ -124,7 +124,7 @@ sub main()
 	exit 1;
     }
 
-    my %writer_args = ( encoding => 'utf-8', ENCODING => 'utf-8' );
+    my %writer_args = ( encoding => 'utf-8' );
     if (defined $opt->{'output'}) {
 	my $fh = new IO::File ">".$opt->{'output'};
 	die "Cannot write to $opt->{'output'}" if not $fh;
