@@ -124,7 +124,7 @@ sub main()
 	exit 1;
     }
 
-    my %writer_args = ( encoding => 'utf-8' );
+    my %writer_args = ( encoding => 'utf-8', ENCODING => 'utf-8' );
     if (defined $opt->{'output'}) {
 	my $fh = new IO::File ">".$opt->{'output'};
 	die "Cannot write to $opt->{'output'}" if not $fh;
@@ -302,7 +302,7 @@ sub get_available_dates()
     my $url = $conf->{'root-url'}->[0] .
 	'DBService.ashx/availableBroadcastDates';
     #print "Get: $url\n";
-    my $content = Encode::encode_utf8(get($url)) || return 0;
+    my $content = get($url) || return 0;
     my $parsed = &parse(\$content) || die "Error parsing date list";
      #print Dumper $parsed;
      my %available_dates = ();
@@ -327,7 +327,7 @@ sub get_schedules($$)
 	'DBService.ashx/getSchedule?channel_source_url=' .
 	$src . '&broadcastDate=' .$date . "&random=".rand();
     #print "Get: $url\n";
-    my $content = Encode::encode_utf8(get($url)) || return 0;
+    my $content = get($url) || return 0;
     my $parsed = &parse(\$content) || die "Error parsing channel list";
     #push(@results, @{@$parsed[0]->{'result'}});
     #print Dumper $parsed;
@@ -652,7 +652,7 @@ sub get_dr_channel_list($)
 	my $url = $conf->{'root-url'}->[0] .
 	    'DBService.ashx/getChannels?type=' . $type;
 	#print "Get: $url\n";
-	my $content = Encode::encode_utf8(get($url)) || return 0;
+	my $content = get($url) || return 0;
 	my $parsed = &parse(\$content) || die "Error parsing channel list";
 	#print Dumper $parsed;
 	push(@results, @{@$parsed[0]->{'result'}});
