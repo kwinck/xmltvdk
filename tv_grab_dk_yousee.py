@@ -16,84 +16,18 @@
 
 
 # TODO
-# - make it follow the recomendations from xmltv: http://xmltv.org/wiki/xmltvcapabilities.html
+# - make it follow the recomendations from xmltv: http://wiki.xmltv.org/index.php/XmltvCapabilities
 #     Capability "manualconfig" refers to a perl library - is this necessary?
 #     GUI config missing
-# - Handling of screwed up guide data from tdc
+#     API config missing
+# - Handling of screwed up guide data from YouSee
 # - Usage information (pytz, ...)
 # - Do not add times for missing end times - leave it to user app.
 # - Check time arithmetic according to http://pytz.sourceforge.net/ (normalize)
-# - Split and merge channel programmes as used by tdc cable net
+# - Split and merge channel programmes as used by YouSee cable net
 # - More complete handling of unexpected webpage layout
 # - More complete error handling
 # - Code comments
-
-# Changelog
-#
-# 2007-03-21: This changelog is stopped, since it is now under subversion control.
-#
-# 2007-01-02: Version 0.98
-# 	- Output is set to UTF-8 unless it is to concole or forced by option
-# 	- Find the users home with os.path.expanduser() - Should be more portable
-#
-# 2006-12-28: Version 0.97
-# 	- Only write channels in output if they have any programme data.
-# 	- Corrected timezone handling.
-# 	  Still missing good solution for change from summer daylight savings to winter
-# 	- Changed command line parameter parsing and program start
-# 	- Default xmltv id's is cleaned for bad chars
-# 	- Only give data on the days specified
-# 	- Added capabilities baseline and manualconfig
-# . - Passing tv_validate_grabber :-)
-# 
-# 2006-12-27: Version 0.96
-# 	- Fixed problem with ',' after last person, when splitting person lists
-# 	- Fix in person splitted (Roger was splittet to R and er)
-# 
-# 2006-12-27: Version 0.95
-# 	- Fixed bug with reading stdin
-# 
-# 2006-12-27: Version 0.94
-# 	- Fixed bug for users without pytz module
-# 
-# 2006-12-26: Version 0.93
-# 	- changed output tag order to follow xmltv dtd
-# 	- Added --capabilities option (xmltv recomendation)
-# 	- Added exit on keyboard interrupt
-# 	- By default output xmltv programme to stdout
-# 	- Use stderr as output for most things to not interrupt with xmltv
-# 	  programme to stdout
-# 	- Changed --first-day and --last-day to --days and --offset
-# 	- Added more encoding stuff to make it work with stdout and piping.
-# 	  Now output encoding depends on locale used when using stdout.
-# 	- Changed standard config file name
-# 	- Added possibility to interrupt by ctrl-c
-# 	- Timezone data added. Needs pytz module.
-# 	  Ignoring timezones if pytz can not load.
-# 	- Output passes tv_validate_file test from xmltv package :-)
-# 	  But only if you use proper xmltv channel id's:
-# 	  All xmltvids must match the regexp /^[-a-zA-Z0-9]+(\.[-a-zA-Z0-9]+)+$/.
-# 
-# 2006-12-26: Version 0.92
-# 	- Added spliting of title to main title and subtitle
-# 	- Added actors and directors
-# 	- Added base class for grabbers
-# 	- Corrected stripping of whitespace for some parts
-# 	- Category is working again
-# 	- Production date is working
-# 	- Warning on format change for some parts
-# 	- Added todo list
-# 	- Added quiet mode (option --quiet)
-# 
-# 2006-12-26: Version 0.91
-# 	- Removal of tabs and newlines around description in xmltv output.
-# 	- Added unicode throughout code. Solved xmltv id Kanl_København for me.
-# 	- Added --first-day and --last-day options.
-# 	- Added credits, license and Changelog
-# 
-# 2006-12-25: Version 0.9
-# 	Initial version.
-
 
 import cookielib
 import urllib2
@@ -101,7 +35,10 @@ import datetime
 import codecs
 import locale
 import sys
+import re
+import htmlentitydefs
 import time
+
 class LocalTimeZone(datetime.tzinfo):
 	"Use timezone information according to the module time"
 	def __init__(self, is_dst = -1):
@@ -136,6 +73,10 @@ except ImportError:
 			return LocalTimeZone()
 	pytz = PyTZ()
 
+def get_file_revision():
+	rev_key=u'$Rev: 121 $'
+	return rev_key[6:-2]
+
 # Snatched from http://kofoto.rosdahl.net/trac/wiki/UnicodeInPython
 def get_file_encoding(f):
 	if hasattr(f, "encoding") and f.encoding:
@@ -143,12 +84,41 @@ def get_file_encoding(f):
 	else:
 		return locale.getpreferredencoding()
 # End of snatch
-def get_good_file_encoding(f):
-	# ensure that we can encode Danish characters etc using the preferred encoding
-	for enc in [get_file_encoding(f), locale.getpreferredencoding()]:
-		if u'\xe6'.encode(enc,'ignore') != '':
-			return enc
-	return 'utf-8'
+
+
+##
+# Removes HTML or XML character references and entities from a text string.
+#
+# @param text The HTML (or XML) source text.
+# @return The plain text, as a Unicode string, if necessary.
+#
+# Written by Fredrik Lundh
+# Taken from http://effbot.org/zone/re-sub.htm#unescape-html
+# Modified to not unescape special chars & < >
+def html_unescape(text):
+	def fixup(m):
+		text = m.group(0)
+		if text[:2] == "&#":
+			# character reference
+			try:
+				if text[:3] == "&#x":
+					newtext = unichr(int(text[3:-1], 16))
+				else:
+					newtext = unichr(int(text[2:-1]))
+				if not (newtext in [ u'&', u'>', u'<' ]):
+					text = newtext
+			except ValueError:
+				pass
+		else:
+			# named entity
+			try:
+				if not text[1:-1] in [ u'amp', u'gt', u'lt']:
+					text = unichr(htmlentitydefs.name2codepoint[text[1:-1]])
+			except KeyError:
+				pass
+		return text # leave as is
+	return re.sub("&#?\w+;", fixup, text)
+
 
 class BaseTVGrabber:
 	
@@ -186,7 +156,7 @@ class BaseTVGrabber:
 		self.days = None
 		self.output = None
 		
-		self.outputEncoding = 'UTF-8'
+		self.outputEncoding = 'utf-8'
 		# Danish timezone
 		self.dktz = pytz.timezone('Europe/Copenhagen')
 		self.timeformat = '%Y%m%d%H%M %z'
@@ -295,7 +265,7 @@ class BaseTVGrabber:
 		sys.stderr.write(" --configure\n")
 		sys.stderr.write("     Configure the grabber\n")
 		#sys.stderr.write(" --gui\n")
-		#sys.stderr.write("     Indicate a wich for graphical information/questions (not supported yet)\n")
+		#sys.stderr.write("     Indicate a wish for graphical information/questions (not supported yet)\n")
 		sys.stderr.write(" --config-file <filename>\n")
 		sys.stderr.write("     Configuration file to use\n")
 		sys.stderr.write('     Default is "'+self.defaultConfigFile+'"\n')
@@ -340,6 +310,25 @@ class BaseTVGrabber:
 			return title.strip(), u''
 		else:
 			return titles[0].strip(), titles[1].strip()
+	
+	def splitDescription(self, title, desc):
+		# Check for empty input
+		if not desc: return u'', u''
+		# Check if we start with "
+		# this will normally indicate a subtitle
+		if desc[0] == u'"':
+			# Split up
+			res = desc[1:].split(u'". ',1)
+			if len(res) < 2:
+				return u'', desc
+			elif res[0].find(u'"') >= 0:
+				return u'', desc
+			elif title == res[0]:
+				return u'', desc
+			else:
+				return res[0], res[1]
+		else:
+			return u'', desc
 	
 	def splitPersons(self, persons):
 		# Check for empty input
@@ -390,16 +379,16 @@ class BaseTVGrabber:
 		return outdata
 
 
-class TDCGrabber(BaseTVGrabber):
+class YouSeeGrabber(BaseTVGrabber):
 	
 	def __init__(self, initSession=False, developerInfo=False):
 		BaseTVGrabber.__init__(self)
 		
-		self.progname = u'tv_grab_dk_tdc'
-		self.version = u'0.99'
-		self.description = u'Denmark (portal.yousee.dk/ktvTVGuide/tvguide.portal)'
+		self.progname = u'tv_grab_dk_yousee'
+		self.version = get_file_revision()
+		self.description = u'Denmark (yousee.tv/tvguide)'
 		self.capabilities = ['baseline', 'manualconfig']
-		self.defaultConfigFile = self.xmltvDir + '/tv_grab_dk_tdc.conf'
+		self.defaultConfigFile = self.xmltvDir + '/tv_grab_dk_yousee.conf'
 		self.configFile = self.defaultConfigFile
 		
 		self.offset = 0
@@ -408,15 +397,16 @@ class TDCGrabber(BaseTVGrabber):
 		
 		self.developerInfo = developerInfo
 		self.weekDay = {u'mand':1,u'tirs':2,u'onsd':3,u'tors':4,u'fred':5,u'lørd':6,u'sønd':7}
+		self.daynames = [u'idag', u'imorgen', u'iovermorgen', u'omtredage', u'omfiredage', u'omfemdage', u'omseksdage']
 		self.startDay = datetime.date.today()
-		self.yesterday = self.startDay - datetime.timedelta(1)
-		self.relativeDay = -100
+		self.today = self.startDay
 		self.pageLoadTries = 3
 		self.channels = []
 		self.programme = {}
 		self.retrieveDetails = True
-		self.infoMap = {'id':0,'start':1,'stop':2,'title':3,'origtitle':4,'actors':5,'desc':6,'director':7,'country':8,'category':9,'date':10,'sub-title':11,'orig-sub-title':12}
-		self.webPageEncoding = 'iso-8859-1'
+		# (title+ , sub-title* , desc* , credits? , date? , category* , language? , orig-language? , length? , icon* , url* , country* , episode-num* , video? , audio? , previously-shown? , premiere? , last-chance? , new? , subtitles* , rating* , star-rating?)
+		self.infoMap = {'id':0,'start':1,'stop':2,'title':3,'actors':4,'desc':5,'director':6,'sub-title':7,'video-format':8, 'stereo':9,'previously-shown':10,'subtitles':11}
+		self.webPageEncoding = 'utf-8'
 		self.opener = None
 		self.forcedEncoding = False
 		
@@ -430,7 +420,7 @@ class TDCGrabber(BaseTVGrabber):
 		sys.stderr.write(" --no-details\n")
 		sys.stderr.write("     Drop details thereby making it a lot faster\n")
 		sys.stderr.write(" --output-encoding\n")
-		sys.stderr.write("     Output encoding to use (defaults to UTF-8)\n")
+		sys.stderr.write("     Output encoding to use (defaults to utf-8)\n")
 		
 	def parseNextArgument(self, argv, argnum):
 		status = BaseTVGrabber.parseNextArgument(self, argv, argnum)
@@ -481,31 +471,11 @@ class TDCGrabber(BaseTVGrabber):
 			except:
 				retries -= 1
 		return page
-
+	
 	def newSession(self, day=None):
 		cj = cookielib.CookieJar()
 		self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
-		url = 'http://portal.yousee.dk/ktvTVGuide/tvguide.portal'
-		data = self.getWebPage(url, 10)
-		self.setViewMode()
-		self.relativeDay = -100
-		if day != None:
-			self.setDay(day)
 	
-	def setViewMode (self):
-		url = 'http://portal.yousee.dk:80/ktvTVGuide/tvguide.portal?_nfpb=true&tvguideimageNavigation_portlet_1_actionOverride=%2Fportlets%2Ftvguide%2FimageNavigation%2FselectViewAction&tvguideimageNavigation_portlet_1%7BactionForm.currentPresentationType%7D=horz'
-		data = self.getWebPage(url, 10)
-		return data != None
-
-	def setDay (self, day):
-		if day != self.relativeDay:
-			self.relativeDay = day
-			url = 'http://portal.yousee.dk:80/ktvTVGuide/tvguide.portal?_nfpb=true&tvguideimageNavigation_portlet_1_actionOverride=%2Fportlets%2Ftvguide%2FimageNavigation%2FselectTimeAction&tvguideimageNavigation_portlet_1wlw-select_key:%7BactionForm.chosenTimeSpanOption%7D=' + str(day)
-			data = self.getWebPage(url, 10)
-			if not data:
-				return False
-		return True
-
 	def cleanForURL(self, indata):
 		outdata = ''
 		for index in range(len(indata)):
@@ -537,54 +507,36 @@ class TDCGrabber(BaseTVGrabber):
 		value = data[index:index2]
 		return value
 
-	def extractChannelPackages (self, data):
-		packages = []
-		index = 0
-		while index >= 0:
-			index = data.find(u'tvguide-leftmenu-listentry', index)
-			if index >= 0:
-				packageIdx = self.extractElement(data, index, u'tvguidemenu_portlet_1{actionForm.channelPackageIdx}')
-				if packageIdx and (packageIdx not in packages):
-					packages.append(packageIdx)
-				index += 1
-		return packages
-
 	def extractChannels (self, data):
-		index = 0
-		while index >= 0:
-			index = data.find(u'tvguide-leftmenu-low-listentry', index)
-			if index >= 0:
-				channel = self.extractElement(data, index, u'tvguidemenu_portlet_1{actionForm.channel}')
-				if channel:
-					channelPackageIdx = self.extractElement(data, index, u'tvguidemenu_portlet_1{actionForm.channelPackageIdx}')
-					channelIdx = self.extractElement(data, index, u'tvguidemenu_portlet_1{actionForm.channelIdx}')
-					xmltvId = self.cleanChannelId(channel+u'.tdckabeltv.dk')
-					while xmltvId in [xi for c,cpi,ci,a,xi in self.channels]:
+		index = data.find(u'<select name="channel">', 0)
+		# First channel option is "alle" meaning all and is therefore skipped
+		index = data.find(u'</option>', index) + len(u'</option>')
+		index2 = data.find(u'</select>', index)
+		while index < index2:
+			channelUrl = self.extractElement(data, index, u'option')
+			if channelUrl:
+				channel, index = self.extractNextProgrammeDetail(data, index, u'>', u'</option>')
+				if channel and index < index2:
+					xmltvId = self.cleanChannelId(channelUrl+u'.yousee.dk')
+					while xmltvId in [xi for c,cu,a,xi in self.channels]:
 						xmltvId += '-X'
-					self.channels.append( (channel, channelPackageIdx, channelIdx, False, xmltvId) )
-				index += 1
+					self.channels.append( (channel, channelUrl, False, xmltvId) )
+				else:
+					sys.stderr.write("Problem parsing for channels")
+					index = index2
+			else:
+				index = index2
 	
 	def retrieveChannels (self):
 		self.channels = []
-		channelPackages = []
 		
-		if not self.quiet: sys.stderr.write("Retrieving channel packages\n")
-		url = 'http://portal.yousee.dk/ktvTVGuide/tvguide.portal'
+		if not self.quiet: sys.stderr.write("Retrieving channels\n")
+		url = 'http://yousee.tv/tvguide/alle/idag'
 		data = self.getWebPage(url, 10)
 		if data:
-			channelPackages = self.extractChannelPackages(data)
-			if not self.quiet: sys.stderr.write("Found following packages: %s\n" % channelPackages)
+			self.extractChannels (data)
 		else:
-			sys.stderr.write("Could not load page\n")
-		
-		for channelgroup in channelPackages:
-			url = 'http://portal.yousee.dk:80/ktvTVGuide/tvguide.portal?_nfpb=true&tvguidemenu_portlet_1_actionOverride=%2Fportlets%2Ftvguide%2Fmenu%2FselectChannelGroupAction&tvguidemenu_portlet_1%7BactionForm.channelPackageIdx%7D=' + channelgroup
-			data = self.getWebPage(url, 10)
-			if data:
-				if not self.quiet: sys.stderr.write("Retrieving channels for package %s\n" % channelgroup)
-				self.extractChannels (data)
-			else:
-				sys.stderr.write("Could not get channels for package %s\n" % channelgroup)
+			sys.stderr.write("Could not get channels")
 	
 	def getChannels (self):
 		return self.channels
@@ -593,10 +545,15 @@ class TDCGrabber(BaseTVGrabber):
 		loadLocals = {}
 		try:
 			execfile(filename, globals(), loadLocals)
-			self.channels = loadLocals['channels']
-			if (not loadLocals.has_key('version')) or (loadLocals['version'] == u'0.9'):
+			try:
+				version = int(loadLocals['version'])
+			except ValueError:
+				version = 0
+			if (version < 121):
 				sys.stderr.write("Warning: You should update %s by deleting the old and make a new\n" % filename)
 				sys.stderr.write("Sorry for the inconvienence\n")
+				return False
+			self.channels = loadLocals['channels']
 			return True
 		except:
 			return False
@@ -615,7 +572,7 @@ class TDCGrabber(BaseTVGrabber):
 			output.write(u"version   = u'"+self.version   +u"'\n")
 			output.write(u'\n')
 			output.write(u'# If you edit this file by hand, only change active and xmltvid columns.\n')
-			output.write(u'# (channel, channelPackageIdx, channelIdx, active, xmltvid)\n')
+			output.write(u'# (channel, channelUrl, active, xmltvid)\n')
 			output.write(u'channels = [\n')
 			for ch in self.channels:
 				output.write(str(ch) + u',\n')
@@ -650,63 +607,67 @@ class TDCGrabber(BaseTVGrabber):
 		if strip: value = self.stripHTMLSpecials(value.strip())
 		return (value, index2 + len(after))
 	
-	def makeProgrammeInfoList(self, progid, start=None, stop=None, title=None, origtitle=None, actors=None, desc=None, director=None, country=None, category=None, date=None):
+	def makeProgrammeInfoList(self, progid, start=None, stop=None, title=None, actors=None, desc=None, director=None, format=None, sound=None, prevshown=None, subtitles=None):
 		info = [None]*len(self.infoMap)
 		info[self.infoMap['id']] = progid
 		info[self.infoMap['start']] = start
 		info[self.infoMap['stop']] = stop
 		info[self.infoMap['title']], info[self.infoMap['sub-title']] = self.splitTitle(title)
-		info[self.infoMap['origtitle']], info[self.infoMap['orig-sub-title']] = self.splitTitle(origtitle)
 		info[self.infoMap['actors']] = self.splitPersons(actors)
-		info[self.infoMap['desc']] = desc
+		if info[self.infoMap['sub-title']]:
+			info[self.infoMap['desc']] = desc
+		else:
+			info[self.infoMap['sub-title']], info[self.infoMap['desc']] = self.splitDescription(info[self.infoMap['title']], desc)
 		info[self.infoMap['director']] = self.splitPersons(director)
-		info[self.infoMap['country']] = country
-		info[self.infoMap['category']] = category
-		info[self.infoMap['date']] = date
+		info[self.infoMap['video-format']] = format
+		info[self.infoMap['stereo']] = sound
+		info[self.infoMap['previously-shown']] = prevshown
+		info[self.infoMap['subtitles']] = subtitles
 		return info
 	
 	def extractBaseProgramme(self, data):
 		programme = []
 		# Run through every programme section
 		index = 0
+		# Skip until the programme comes
+		index = data.find(u'<div class="content">', index)
 		while index >= 0:
 			# This string indicates a programme section start
-			index = data.find(u'tvguideresultPresentation_portlet_1', index)
+			index = data.find(u'<dt>', index)
 			if index != -1:
-				index2 = data.find(u'</form>', index)
+				index2 = data.find(u'</dd>', index)
 				# Get the programme id
-				programmeId = self.extractElement(data, index, u'tvguideresultPresentation_portlet_1{actionForm.udsendelsesId}')
+				programmeId, index = self.extractNextProgrammeDetail(data, index, u'showprograminfo(', u');')
 				if programmeId:
-					start, index = self.extractNextProgrammeDetail(data, index, u'<span>', u'</span>')
-					if index >= index2: start = None
-					stop,  index = self.extractNextProgrammeDetail(data, index, u'<span>', u'</span>')
-					if index >= index2: stop = None
-					title, index = self.extractNextProgrammeDetail(data, index, u'<span>', u'</span>')
+					title, index = self.extractNextProgrammeDetail(data, index, u'">', u'</a>')
 					if index >= index2: title = None
+					start, index = self.extractNextProgrammeDetail(data, index, u'Kl. ', u' -')
+					if index >= index2: start = None
+					stop,  index = self.extractNextProgrammeDetail(data, index, u' ', u'</a>')
+					if index >= index2: stop = None
 					programme.append(self.makeProgrammeInfoList(progid=programmeId, start=start, stop=stop, title=title))
 				index = index2
 		return programme
 	
-	def retrieveBaseDayProgramme(self, channel, channelPackageIdx, channelIdx, day):
+	def retrieveBaseDayProgramme(self, channel, channelUrl, day):
+		# TODO fix handling of dayshift
 		baseProgramme = []
-		# Set the day we want a programme for
-		self.setDay(day)
-		# fetch the page with the base programme (no details
-		url = 'http://portal.yousee.dk:80/ktvTVGuide/tvguide.portal?_nfpb=true&tvguidemenu_portlet_1_actionOverride=%2Fportlets%2Ftvguide%2Fmenu%2FselectChannelAction&tvguidemenu_portlet_1%7BactionForm.channel%7D='+self.cleanForURL(channel)+'&tvguidemenu_portlet_1%7BactionForm.channelPackageIdx%7D='+channelPackageIdx+'&tvguidemenu_portlet_1%7BactionForm.channelIdx%7D='+channelIdx
+		# fetch the page with the base programme (no details)
+		url = u'http://yousee.tv/tvguide/kanal/'+self.cleanForURL(channelUrl)+u'/'+self.daynames[day]
 		data = self.getWebPage(url, 10)
 		if data:
 			# Check the week day and thereby set the date
-			daySeven = self.extractDaySeven (data)
-			if not daySeven:
-				sys.stderr.write("Could not find the day!\n")
-				return None
-			if daySeven != self.yesterday.isoweekday():
-				# The day has changed
-				self.yesterday += datetime.timedelta(1)
-				if daySeven != self.yesterday.isoweekday():
-					# Something is wrong the day has changed, but not to the next!
-					sys.stderr.write("Error with days!\n")
-					return None
+			#guideDate = self.extractGuideDate (data)
+			#if not guideDate:
+			#	sys.stderr.write("Could not find the day!\n")
+			#	return None
+			#if guideDate != self.today.isoweekday(): # TODO
+			#	# The day has changed
+			#	self.today += datetime.timedelta(1)
+			#	if guideDate != self.today.isoweekday():
+			#		# Something is wrong the day has changed, but not to the next!
+			#		sys.stderr.write("Error with days!\n")
+			#		return None
 			# Parse the base programme
 			baseProgramme = self.extractBaseProgramme(data)
 		else:
@@ -714,59 +675,16 @@ class TDCGrabber(BaseTVGrabber):
 		return baseProgramme
 	
 	def stripHTMLSpecials (self, data):
+		# convert all numeric and named entities to utf-8 chars
+		data = html_unescape(data)
 		# replace '& ' with '&amp; '
-		data = data.replace(u'& ', u'&amp; ')
+		#data = data.replace(u'& ', u'&amp; ')
 		# remove all '<br />'
 		data = data.replace(u'<br />', u' ')
 		# remove all '&nbsp;'
-		data = data.replace(u'&nbsp;', u' ')
+		#data = data.replace(u'&nbsp;', u' ')
 		
 		return data
-	
-	def parseWooblyInfoSkipEmptyLines (self, data, index):
-		linecount = 0
-		index1 = index
-		index2 = data.find(u'\n', index1) + len(u'\n')
-		while index2 >= 0 + len(u'\n') and len(data[index1:index2].strip()) == 0:
-			linecount += 1
-			index1 = index2
-			index2 = data.find(u'\n', index1) + len(u'\n')
-		if index2 == len(u'\n') - 1: index1 = -1
-		return index1, linecount
-	
-	def parseWooblyInfo (self, data):
-		country, category, date = None, None, None
-		if not data: return country, category, date
-		index, lines = self.parseWooblyInfoSkipEmptyLines(data, 0)
-		if index == -1: return country, category, date
-		if lines == 1:
-			index2 = data.find(u'\n', index)
-			if index2 >= 0:
-				country = self.stripHTMLSpecials(data[index:index2]).strip()
-				index, lines = self.parseWooblyInfoSkipEmptyLines(data, index2 + 1)
-				if index == -1: return country, category, date
-		if lines == 3:
-			index2 = data.find(u'\n', index)
-			if index2 >= 0:
-				category = self.stripHTMLSpecials(data[index:index2]).strip()
-				index, lines = self.parseWooblyInfoSkipEmptyLines(data, index2 + 1)
-				if index == -1: return country, category, date
-		if lines == 3:
-			index = data.find(u'fra ', index)
-			if index >= 0:
-				index += len(u'fra ')
-				index2 = data.find(u'\n', index)
-				if index2 >= 0:
-					date = self.stripHTMLSpecials(data[index:index2]).strip()
-		else:
-			if not self.wooblyWarning:
-				sys.stderr.write("Warning: information format seems wrong. Data:\n")
-				sys.stderr.write("%s\n" % data)
-				self.wooblyWarning = 1
-			else:
-				self.wooblyWarning += 1
-				sys.stderr.write("Warning %i: information format seems wrong.\n" % self.wooblyWarning)
-		return (country, category, date)
 	
 	def makeTime (self, timeStr, relativeDay):
 		# You always have two digits for minutes, so find it from behind
@@ -776,7 +694,7 @@ class TDCGrabber(BaseTVGrabber):
 		except:
 			sys.stderr.write("Could not convert %s\n" % timeStr)
 			return None
-		date = self.yesterday + datetime.timedelta(relativeDay)
+		date = self.today + datetime.timedelta(relativeDay)
 		try:
 			time = datetime.time(hour, minute)
 		except:
@@ -785,27 +703,66 @@ class TDCGrabber(BaseTVGrabber):
 		return datetime.datetime.combine(date, time)
 	
 	def extractProgrammeDetails (self, data, progid):
-		index = data.find(u'detail-bar-info')
-		index = data.find(u'>', index) + 1
-		index2 = data.find(u'</div>', index)
-		subdata = data[index:index2]
 		index = 0
-		start, index = self.extractNextProgrammeDetail(subdata, index, u'<span>', u'</span>')
-		stop,  index = self.extractNextProgrammeDetail(subdata, index, u'<span>', u'</span>')
-		title, index = self.extractNextProgrammeDetail(subdata, index, u'<span>', u'</span>')
-		origtitle, index = self.extractNextProgrammeDetail(subdata, index, u'<b>(', u')</b>')
-		infoarea, index  = self.extractNextProgrammeDetail(subdata, index, u'<b>\r\n', u'</b>\r\n', False)
-		desc,   index = self.extractNextProgrammeDetail(subdata, index, u'<span>', u'</span>')
-		actors, index = self.extractNextProgrammeDetail(subdata, index, u'                                    Med ', u'\n')
-		director, index = self.extractNextProgrammeDetail(subdata, index, u'                                    Instrueret af ', u'\n')
+		subdata, index = self.extractNextProgrammeDetail(data, index, u'<div class="properties">', u'\t</div>')
+		# extract:
+		# <div>TTV</div>, <div>(G)</div>, <div>16:9</div>
+		# between index and index2
+		format = None
+		prevshown = None
+		subtitles = None
+		sound = None
+		detail, index2 = self.extractNextProgrammeDetail(subdata, 0, u'<div>', u'</div>')
+		while detail:
+			if detail:
+				if detail == u'16:9':
+					format = detail
+				elif detail == u'(G)':
+					prevshown = True
+				elif detail == u'TTV':
+					subtitles = u'teletext'
+				elif detail == u'((S))':
+					sound = u'surround'
+				elif detail == u'S':
+					# Not sure what this is? Mono?
+					dummy = None
+				elif detail == u'SH':
+					# Not sure what this is? Black & White?
+					dummy = None
+				elif detail == u'TH':
+					# Tekstet for hørehæmmede: is this special subtitles or hand sign?
+					dummy = None
+				elif detail == u'T':
+					# Not sure what this is? onscreen subtitles?
+					dummy = None
+				elif detail == u'5:1':
+					# What the heck is this?
+					dummy = None
+				else:
+					if not self.quiet:
+						sys.stderr.write("Got unknown detail: '%s'" % detail)
+						sys.stderr.write(" for programme '%s'\n" % progid)
+				detail, index2 = self.extractNextProgrammeDetail(subdata, index2, u'<div>', u'</div>')
 		
-		country, category, date = self.parseWooblyInfo(infoarea)
+		# Skip title and time as we already have that
+		subdata, index = self.extractNextProgrammeDetail(data, index, u'<p>', u'/p>')
+		title = None
+		start = None
+		stop = None
+		# Find the start of the description
+		desc, index = self.extractNextProgrammeDetail(data, index, u'<p>', u'</p>')
+		subdata, index = self.extractNextProgrammeDetail(data, index, u'<p>', u'/p>')
+		actors = None
+		director = None
+		if subdata:
+			actors, index = self.extractNextProgrammeDetail(subdata, 0, u'Medvirkende:</strong> ', u'<')
+			director, index = self.extractNextProgrammeDetail(subdata, 0, u'Instruktør:</strong> ', u'<')
 		
-		return self.makeProgrammeInfoList(progid=progid, start=start, stop=stop, title=title, origtitle=origtitle, actors=actors, desc=desc, director=director, country=country, category=category, date=date)
+		return self.makeProgrammeInfoList(progid=progid, start=start, stop=stop, title=title, actors=actors, desc=desc, director=director, format=format, sound=sound, prevshown=prevshown, subtitles=subtitles)
 	
 	def retrieveProgrammeDetails (self, prog):
 		programmeDetails = None
-		url = 'http://portal.yousee.dk:80/ktvTVGuide/tvguide.portal?_nfpb=true&tvguideresultPresentation_portlet_1_actionOverride=%2Fportlets%2Ftvguide%2FresultPresentation%2FselectShowDetails&tvguideresultPresentation_portlet_1%7BactionForm.udsendelsesId%7D='+prog[self.infoMap['id']]
+		url = u'http://yousee.tv/modal/tvguide_programinfo/'+prog[self.infoMap['id']]
 		data = self.getWebPage(url, 3)
 		if data:
 			programmeDetails = self.extractProgrammeDetails (data, prog[self.infoMap['id']])
@@ -916,10 +873,10 @@ class TDCGrabber(BaseTVGrabber):
 				else:
 					index += 1
 	
-	def retrieveDayProgramme (self, channel, channelPackageIdx, channelIdx, day):
+	def retrieveDayProgramme (self, channel, channelUrl, day):
 		programme = []
-		if not self.quiet: sys.stderr.write("Retrieving programme for %s on day %s\n" % (channel,day))
-		programme = self.retrieveBaseDayProgramme(channel, channelPackageIdx, channelIdx, day)
+		if not self.quiet: sys.stderr.write("Retrieving programme for %s on day %s\n" % (channel,day+1))
+		programme = self.retrieveBaseDayProgramme(channel, channelUrl, day)
 		programme = self.correctTimes(day, programme)
 		self.removeOutOfTime(programme)
 		if programme:
@@ -929,12 +886,12 @@ class TDCGrabber(BaseTVGrabber):
 					if programmeDetails:
 						programme[index] = programmeDetails
 		else:
-			sys.stderr.write("Nothing found for %s on day %s\n" % (channel,day))
+			sys.stderr.write("Nothing found for %s on day %s\n" % (channel,day+1))
 		return programme
 	
-	def cleanDuplicates(self):
+	def cleanDuplicates(self): # TODO?
 		# infoMap: id, start, stop, title, origtitle, actors, desc, director, country, category, date
-		for channel, channelPackageIdx, channelIdx, channelActive, xmltvId in self.channels:
+		for channel, channelUrl, channelActive, xmltvId in self.channels:
 			if channelActive:
 				idlist = []
 				programme = self.programme[channel]
@@ -947,20 +904,16 @@ class TDCGrabber(BaseTVGrabber):
 						idlist.append(progid)
 						index += 1
 	
-	def retrieveAllProgramme (self, details=True, firstDay=1, lastDay=7):
+	def retrieveAllProgramme (self, details=True, firstDay=0, lastDay=6):
 		self.retrieveDetails = details
 		self.programme = {}
-		for channel, channelPackageIdx, channelIdx, channelActive, xmltvId in self.channels:
+		for channel, channelUrl, channelActive, xmltvId in self.channels:
 			if channelActive: self.programme[channel] = []
 		if firstDay <= self.maxDays:
 			for day in range(firstDay, lastDay+1):
-				self.setDay(day)
-				for channel, channelPackageIdx, channelIdx, channelActive, xmltvId in self.channels:
+				for channel, channelUrl, channelActive, xmltvId in self.channels:
 					if channelActive:
-						programme = self.retrieveDayProgramme(channel, channelPackageIdx, channelIdx, day)
-						if programme == []:
-							self.newSession(day)
-							programme = self.retrieveDayProgramme(channel, channelPackageIdx, channelIdx, day)
+						programme = self.retrieveDayProgramme(channel, channelUrl, day)
 						if programme:
 							self.programme[channel] += programme
 		self.cleanDuplicates()
@@ -975,7 +928,7 @@ class TDCGrabber(BaseTVGrabber):
 		print >> file, indentStr+string
 	
 	def writeXMLChannels (self, file, indent=0):
-		for channel, channelPackageIdx, channelIdx, channelActive, xmltvId in self.channels:
+		for channel, channelUrl, channelActive, xmltvId in self.channels:
 			if self.listchannels or (channelActive and self.programme[channel]):
 				self.writeXMLLine(file, u'<channel id="'+xmltvId+u'">', indent)
 				self.writeXMLLine(file, u'<display-name>'+channel+u'</display-name>', indent+1)
@@ -983,50 +936,49 @@ class TDCGrabber(BaseTVGrabber):
 	
 	def writeXMLProgramme (self, file, indent=0):
 		# (title+ , sub-title* , desc* , credits? , date? , category* , language? , orig-language? , length? , icon* , url* , country* , episode-num* , video? , audio? , previously-shown? , premiere? , last-chance? , new? , subtitles* , rating* , star-rating?)
-		# infoMap: id, start, stop, title, origtitle, actors, desc, director, country, category, date
-		for channel, channelPackageIdx, channelIdx, channelActive, xmltvId in self.channels:
+		# infoMap: id, start, stop, title, actors, desc, director, sub-title
+		for channel, channelUrl, channelActive, xmltvId in self.channels:
 			if channelActive:
 				programme = self.programme[channel]
 				for p in programme:
 					self.writeXMLLine(file, u'<programme start="'+p[self.infoMap['start']].strftime(self.timeformat)+u'" stop="'+p[self.infoMap['stop']].strftime(self.timeformat)+u'" channel="'+xmltvId+u'">', indent)
 					
-					if p[self.infoMap['origtitle']]:
-						self.writeXMLLine(file, u'<title>'+p[self.infoMap['origtitle']]+u'</title>', indent+1)
 					if p[self.infoMap['title']]:
 						self.writeXMLLine(file, u'<title lang="da">'+p[self.infoMap['title']]+u'</title>', indent+1)
-					elif not p[self.infoMap['origtitle']]:
-						self.writeXMLLine(file, u'<title lang="da">Unknown title</title>', indent+1)
-					
-					if p[self.infoMap['orig-sub-title']]:
-						self.writeXMLLine(file, u'<sub-title>'+p[self.infoMap['orig-sub-title']]+u'</sub-title>', indent+1)
+					else:
+						self.writeXMLLine(file, u'<title lang="da">Ukendt titel</title>', indent+1)
+
 					if p[self.infoMap['sub-title']]:
 						self.writeXMLLine(file, u'<sub-title lang="da">'+p[self.infoMap['sub-title']]+u'</sub-title>', indent+1)
-					
+
 					if p[self.infoMap['desc']]:
 						self.writeXMLLine(file, u'<desc lang="da">'+p[self.infoMap['desc']]+u'</desc>', indent+1)
 					
 					if p[self.infoMap['actors']] or p[self.infoMap['director']]:
-						self.writeXMLLine(file, '<credits>', indent+1)	
+						self.writeXMLLine(file, u'<credits>', indent+1)
 						if p[self.infoMap['director']]:
 							for director in p[self.infoMap['director']]:
-								self.writeXMLLine(file, '<director>'+director+'</director>', indent+2)
+								self.writeXMLLine(file, u'<director>'+director+u'</director>', indent+2)
 						if p[self.infoMap['actors']]:
 							for actor in p[self.infoMap['actors']]:
-								self.writeXMLLine(file, '<actor>'+actor+'</actor>', indent+2)
-						self.writeXMLLine(file, '</credits>', indent+1)
+								self.writeXMLLine(file, u'<actor>'+actor+u'</actor>', indent+2)
+						self.writeXMLLine(file, u'</credits>', indent+1)
 					
-					if p[self.infoMap['date']]:
-						if len(p[self.infoMap['date']]) == 4 or len(p[self.infoMap['date']]) == 2:
-							try:
-								year = int(p[self.infoMap['date']])
-								self.writeXMLLine(file, u'<date>'+p[self.infoMap['date']]+u'</date>', indent+1)
-							except: pass
+					if p[self.infoMap['video-format']]:
+						self.writeXMLLine(file, u'<video>', indent+1)
+						self.writeXMLLine(file, u'<aspect>'+p[self.infoMap['video-format']]+u'</aspect>', indent+2)
+						self.writeXMLLine(file, u'</video>', indent+1)
 					
-					if p[self.infoMap['category']]:
-						self.writeXMLLine(file, u'<category lang="da">'+p[self.infoMap['category']]+u'</category>', indent+1)
+					if p[self.infoMap['stereo']]:
+						self.writeXMLLine(file, u'<audio>', indent+1)
+						self.writeXMLLine(file, u'<stereo>'+p[self.infoMap['stereo']]+u'</stereo>', indent+2)
+						self.writeXMLLine(file, u'</audio>', indent+1)
 					
-					if p[self.infoMap['country']]:
-						self.writeXMLLine(file, u'<country lang="da">'+p[self.infoMap['country']]+u'</country>', indent+1)
+					if p[self.infoMap['previously-shown']]:
+						self.writeXMLLine(file, u'<previously-shown></previously-shown>', indent+1)
+					
+					if p[self.infoMap['subtitles']]:
+						self.writeXMLLine(file, u'<subtitles type="'+p[self.infoMap['subtitles']]+'"></subtitles>', indent+1)
 					
 					self.writeXMLLine(file, u'</programme>', indent)
 	
@@ -1034,7 +986,7 @@ class TDCGrabber(BaseTVGrabber):
 		self.writeXMLLine(file, u'<?xml version="1.0" encoding="'+self.outputEncoding+'"?>', 0)
 		self.writeXMLLine(file, u'<!DOCTYPE tv SYSTEM "xmltv.dtd">', 0)
 		
-		self.writeXMLLine(file, u'<tv source-info-url="http://yousee.dk/privat/"  generator-info-name="'+self.progname+u'/'+self.version+u'">',  0)
+		self.writeXMLLine(file, u'<tv source-info-url="http://yousee.dk/tvguide"  generator-info-name="'+self.progname+u'/'+self.version+u'">',  0)
 		
 		self.writeXMLLine(file, u'', 0)
 		self.writeXMLChannels (file, 1)
@@ -1079,37 +1031,40 @@ class TDCGrabber(BaseTVGrabber):
 			return False
 	
 	def activateChannel(self, channel):
-		# (channel, channelPackageIdx, channelIdx, active, xmltv id)
+		# (channel, channelUrl, active, xmltv id)
 		for index in range(len(self.channels)):
 			if self.channels[index][0] == channel:
-				channel, channelPackageIdx, channelIdx, active, xmltvid = self.channels[index]
-				self.channels[index] = (channel, channelPackageIdx, channelIdx, True, xmltvid)
+				channel, channelUrl, active, xmltvid = self.channels[index]
+				self.channels[index] = (channel, channelUrl, True, xmltvid)
 
 	def activateAllChannels(self):
-		# (channel, channelPackageIdx, channelIdx, active, xmltv id)
+		# (channel, channelUrl, active, xmltv id)
 		for index in range(len(self.channels)):
-			channel, channelPackageIdx, channelIdx, active, xmltvid = self.channels[index]
-			self.channels[index] = (channel, channelPackageIdx, channelIdx, True, xmltvid)
+			channel, channelUrl, active, xmltvid = self.channels[index]
+			self.channels[index] = (channel, channelUrl, True, xmltvid)
 	
 	def deactivateChannel(self, channel):
-		# (channel, channelPackageIdx, channelIdx, active, xmltv id)
+		# (channel, channelUrl, active, xmltv id)
 		for index in range(len(self.channels)):
 			if self.channels[index][0] == channel:
-				channel, channelPackageIdx, channelIdx, active, xmltvid = self.channels[index]
-				self.channels[index] = (channel, channelPackageIdx, channelIdx, False, xmltvid)
+				channel, channelUrl, active, xmltvid = self.channels[index]
+				self.channels[index] = (channel, channelUrl, False, xmltvid)
 
 	def deactivateAllChannels(self):
-		# (channel, channelPackageIdx, channelIdx, active, xmltv id)
+		# (channel, channelUrl, active, xmltv id)
 		for index in range(len(self.channels)):
-			channel, channelPackageIdx, channelIdx, active, xmltvid = self.channels[index]
-			self.channels[index] = (channel, channelPackageIdx, channelIdx, False, xmltvid)
+			channel, channelUrl, active, xmltvid = self.channels[index]
+			self.channels[index] = (channel, channelUrl, False, xmltvid)
 
 	def listChannels(self, file):
 		self.writeXML(file)
 
 	def interactiveConfigure(self):
+		if not self.output:
+			sys.stderr.write("A configuration is started, but you pipe the output to something.\n")
+			sys.stderr.write("You properly want to ctrl-c out now and run it again without piping the output.\n")
 		print ""
-		for channel, channelPackageIdx, channelIdx, channelActive, xmltvId in self.getChannels():
+		for channel, channelUrl, channelActive, xmltvId in self.getChannels():
 			answer = '-'
 			while answer not in ['y', 'n', '']:
 				if channelActive: answer = raw_input('Activate channel "%s" (Y/n) ' % channel)
@@ -1126,7 +1081,7 @@ class TDCGrabber(BaseTVGrabber):
 		print "But be carefull with the format as this code is not error tolerant."
 	
 	def run(self):
-		if not self.quiet: sys.stderr.write("Starting TDCGrabber\n")
+		if not self.quiet: sys.stderr.write("Starting the YouSee Grabber\n")
 		
 		status = self.checkSetup()
 		if status < 0: return status
@@ -1135,29 +1090,29 @@ class TDCGrabber(BaseTVGrabber):
 		fileOutput = False
 		if self.output:
 			try:
-				file = codecs.open(self.output, 'w', self.outputEncoding)
+				file = codecs.open(self.output, 'w', self.outputEncoding, errors='xmlcharrefreplace')
 				fileOutput = True
 			except:
 				sys.stderr.write('Could not open output file "'+self.output+'"\n')
 				return self.errorCouldNotOpenOutput
 		if self.forcedEncoding and not fileOutput:
-			sys.stdout = codecs.getwriter(self.outputEncoding)(sys.stdout)
+			sys.stdout = codecs.getwriter(self.outputEncoding)(sys.stdout, errors='xmlcharrefreplace')
 		
-		firstDay = 1 + self.offset
-		lastDay = self.offset + self.days
+		firstDay = self.offset
+		lastDay = self.offset + self.days - 1
 		self.startTime = datetime.datetime.combine(self.startDay, datetime.time(0))
 		self.startTime += datetime.timedelta(self.offset)
 		self.stopTime = self.startTime + datetime.timedelta(self.days)
 		self.startTime = self.dktz.localize(self.startTime,  is_dst=True)
 		self.stopTime = self.dktz.localize(self.stopTime,  is_dst=True)
-		# TDC days starts at 06:00 if it is not the current day
+		# YouSee days starts at 06:00 if it is not the current day
 		# so start the day before if not today
-		if firstDay > 1:
+		if firstDay > 0:
 			firstDay -= 1
 		
 		if not self.quiet: sys.stderr.write("Loading configuration\n")
 		if not grabber.loadChannels(self.configFile):
-			sys.stderr.write("Configuration file %s does not exist.\n" % self.configFile)
+			sys.stderr.write("Configuration file %s does not exist or is not usable.\n" % self.configFile)
 			sys.stderr.write("Retrieving a channel list from Internet\n")
 			self.configure = True
 			grabber.retrieveChannels()
@@ -1189,13 +1144,13 @@ if __name__ == "__main__":
 	#sys.stderr = codecs.getwriter(get_file_encoding(sys.stderr))(sys.stderr)
 	# End of snatch
 	
-	sys.stderr = codecs.getwriter(get_good_file_encoding(sys.stderr))(sys.stderr)
+	sys.stderr = codecs.getwriter(get_file_encoding(sys.stderr))(sys.stderr, errors='backslashreplace')
 	if sys.stdout.isatty():
-		sys.stdout = codecs.getwriter(get_good_file_encoding(sys.stdout))(sys.stdout)
+		sys.stdout = codecs.getwriter(get_file_encoding(sys.stdout))(sys.stdout, errors='backslashreplace')
 	else:
 		sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
 	
-	grabber = TDCGrabber()
+	grabber = YouSeeGrabber()
 	status = grabber.parseArguments(sys.argv)
 	if status == grabber.statusOk: status = grabber.run()
 	
