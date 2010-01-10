@@ -128,7 +128,7 @@ sub main()
 
     my %writer_args = ( encoding => 'utf-8' );
     if (defined $opt->{'output'}) {
-	my $fh = new IO::File ">".$opt->{'output'};
+	my $fh = IO::File->new($opt->{'output'}, ">:utf8");
 	die "Cannot write to $opt->{'output'}" if not $fh;
 	$writer_args{'OUTPUT'} = $fh;
     }
