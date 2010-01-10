@@ -46,6 +46,8 @@ use DateTime;
 
 $ua->agent("xmltv/$XMLTV::VERSION");
 
+binmode STDOUT,":utf8";
+
 my $grabber_name = 'tv_grab_dk_dr_2009';
 my $id_prefix = '.dr.dk';
 
