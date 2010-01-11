@@ -9,7 +9,7 @@ import sys
 
 #Rækkefølge grabbere skal merges - "dr_2009" ikke tilføjet endnu da det mangler
 # at blive testet ordentligt, men du kan tilføje den manuelt.
-mergeorder = ("jubii","tvtid","dr","tdc","ahot","tvguiden","ontv","swedb")
+mergeorder = ("tvtid","dr_2009","jubii")
 
 mergeorderpath = os.path.normpath(os.path.join(os.path.dirname(sys.argv[0]),"mergeorder.conf"))
 if os.path.isfile(mergeorderpath):
@@ -40,16 +40,10 @@ grabbers = {}
 
 #Titlerne på grabberne
 grabberNames = {
-    "tv_grab_dk":"tv2",
     "tv_grab_dk_tvtid":"tvtid",
-    "tv_grab_dk_tdc.py":"tdc",
-    "tv_grab_dk_ahot.py":"ahot",
-    "tv_grab_dk_ontv.py":"ontv",
+    "tv_grab_dk_dr_2009":"dr_2009",
     "tv_grab_dk_jubii.py":"jubii",
-    "tv_grab_dk_tvguiden.py":"tvguiden",
-    "tv_grab_dk_dr":"dr",
-    "tv_grab_se_swedb":"swedb",
-    "tv_grab_dk_dr_2009":"dr_2009"
+    "tv_grab_dk_yousee.py":"tdc"
 }
 
 #Hvilke programmer grabbere skal køres med
@@ -196,8 +190,8 @@ if not '--noupdate' in opts:
                 "tv_grab_dk_dr",
                 "tv_grab_dk_jubii.py",
                 "tv_grab_dk_ontv.py",
-                "tv_grab_dk_tdc.py",
-                "tv_grab_dk_tdc.conf",
+                "tv_grab_dk_yousee.py",
+                "tv_grab_dk_yousee.conf",
                 "tv_grab_dk_tvguiden.py",
                 "tv_grab_dk_tvtid",
                 "tv_grab_dk_dr_2009",
