@@ -7,9 +7,9 @@ import os
 import codecs
 import sys
 
-#Rækkefølge grabbere skal merges - "dr_2009" ikke tilføjet endnu da det mangler
-# at blive testet ordentligt, men du kan tilføje den manuelt.
-mergeorder = ("tvtid","dr_2009","jubii")
+#R�kkef�lge grabbere skal merges - "dr_2009" ikke tilf�jet endnu da det mangler
+# at blive testet ordentligt, men du kan tilf�je den manuelt.
+mergeorder = ("jubii","tvtid","dr","ahot","tvguiden","swedb")
 
 mergeorderpath = os.path.normpath(os.path.join(os.path.dirname(sys.argv[0]),"mergeorder.conf"))
 if os.path.isfile(mergeorderpath):
@@ -41,17 +41,21 @@ grabbers = {}
 #Titlerne på grabberne
 grabberNames = {
     "tv_grab_dk_tvtid":"tvtid",
-    "tv_grab_dk_dr_2009":"dr_2009",
+    "tv_grab_dk_yousee.py":"yousee",
+    "tv_grab_dk_ahot.py":"ahot",
+    "tv_grab_dk_ontv.py":"ontv",
     "tv_grab_dk_jubii.py":"jubii",
-    "tv_grab_dk_yousee.py":"tdc"
+    "tv_grab_dk_tvguiden.py":"tvguiden",
+    "tv_grab_dk_dr":"dr",
+    "tv_grab_se_swedb":"swedb",
+    "tv_grab_dk_dr_2009":"dr_2009"
 }
 
 #Hvilke programmer grabbere skal køres med
 interpreters = {
-    "tv2":"perl",
     "tvtid":"perl -I perllib/",
     "dr":"perl",
-    "tdc":"python",
+    "yousee":"python",
     "ahot":"python",
     "ontv":"python",
     "jubii":"python",
@@ -62,49 +66,47 @@ interpreters = {
 
 #Om grabberen skal have splittitle kørt
 needSplittitle = {
-    "tv2":True,
     "dr":True,
-    "dr_2009":True,
-    "tdc":True
+    "dr_2009":True
 }
 
 #De efterfoelgende strukturer bestemmer formatet paa grabbernes config filer:
 
 #Navne på forskellige configfiler. 
 #Hvis en grabber ikke har et entry i denne liste, vil der ikke blive lavet nogen configfil automatisk. 
-#Grabberen skal i det tilfælde konfigureres særskilt.
+#Grabberen skal i det tilf�lde konfigureres s�rskilt.
 configFiles = {
-    "tv2":"tv_grab_dk.conf",
     "tvtid":"tv_grab_dk_tvtid.conf",
     "dr":"tv_grab_dk_dr.conf",
     "ahot":"tv_grab_dk_ahot.conf",
     "ontv":"tv_grab_dk_ontv.conf",
     "jubii":"tv_grab_dk_jubii.conf",
+    "swedb":"tv_grab_se_swedb.conf",
     "tvguiden":"tv_grab_dk_tvguiden_py.conf",
-    "tdc":"tv_grab_dk_tdc.conf",
+    "yousee":"tv_grab_dk_yousee.conf",
     "dr_2009":"tv_grab_dk_dr_2009.conf"
 }
 
 #Her kan der defineres linier som placeres i starten af conf filen:
 extraConfigLines = {
-    "tdc":"firstLang=Original\ncreditsInDesc=Yes\nsplitTitles=Yes",
+    "yousee":"firstLang=Original\ncreditsInDesc=Yes\nsplitTitles=Yes",
     "dr_2009":"accept-copyright-disclaimer=accept\ninclude-radio=0\nroot-url=http://www.dr.dk/tjenester/programoversigt/"
 }
 
 #Særlige funktioner til oversættelse af parsefil -> configfil
 configAdaptors = {
-    "tv2":   lambda t, a: "channel %s %s" % (t[:3], a),
     "tvtid": lambda t, a: "channel %s %s" % (t, a),
     "dr":    lambda t, a: "channel %s %s" % (t[:3], a),
-    "dr_2009":    lambda t, a: "channel=%s" % (t)
+    "dr_2009":    lambda t, a: "channel=%s" % (t),
+    "swedb": lambda t, a: "channel=%s" % (t)
 }
 
 #Om grabberen bruger "id name" eller bare "id"
 needName = {
-    "tv2":True,
     "tvtid":True,
     "dr":True,
     "ontv":True,
+    "swedb":True,
     "tvguiden":True
 }
 
@@ -159,13 +161,13 @@ if not '--noupdate' in opts:
             parsefiles = (
                 "ahotparsefile",
                 "drparsefile",
+                "dr_2009parsefile",
                 "jubiiparsefile",
                 "ontvparsefile",
                 "swedbparsefile",
-                "tdcparsefile",
-                "tvtidparsefile",
                 "tvguidenparsefile",
-                "dr_2009parsefile")
+                "tvtidparsefile",
+                "youseeparsefile")
             for filename in parsefiles:
                 print "Copying "+filename+" from sourceforge"
                 contents=urllib2.urlopen("http://xmltvdk.svn.sourceforge.net/viewvc/*checkout*/xmltvdk/trunk/channel_ID_parse_filer/"+filename).read()
@@ -188,13 +190,13 @@ if not '--noupdate' in opts:
                 "timefix.py",
                 "tv_grab_dk_ahot.py",
                 "tv_grab_dk_dr",
+                "tv_grab_dk_dr_2009",
                 "tv_grab_dk_jubii.py",
                 "tv_grab_dk_ontv.py",
-                "tv_grab_dk_yousee.py",
-                "tv_grab_dk_yousee.conf",
+                "tv_grab_se_swedb",
                 "tv_grab_dk_tvguiden.py",
                 "tv_grab_dk_tvtid",
-                "tv_grab_dk_dr_2009",
+                "tv_grab_dk_yousee.py",
                 "xmltvanalyzer.py",
                 "xmltvmerger.py")
             for filename in files:
@@ -229,19 +231,19 @@ if not '--noupdate' in opts:
 #        break
 #print "Using tv2 grabber in "+grabbers["tv2"]*/
 #kigger efter tv_grab_dk_dr grabberen:
-if "dr" in mergeorder:
-    drpath="./tv_grab_dk_dr"
-    if not os.path.isfile(drpath):
-        drpath="/usr/bin/tv_grab_dk_dr"
-        if not os.path.isfile(drpath):
-            drpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_dk_dr"
-            if not os.path.isfile(drpath):
-                drpath=r"C:\Perl\site\lib\xmltv\tv_grab_dk_dr"
-    if os.path.isfile(drpath):
-        grabbers["dr"]=drpath
-        print "Using DR grabber in "+grabbers["dr"]
-    else:
-        print "Kan ikke finde tv_grab_dk_dr grabberen. Fortsaetter uden."
+#if "dr" in mergeorder:
+#    drpath="./tv_grab_dk_dr"
+#    if not os.path.isfile(drpath):
+#        drpath="/usr/bin/tv_grab_dk_dr"
+#        if not os.path.isfile(drpath):
+#            drpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_dk_dr"
+#            if not os.path.isfile(drpath):
+#                drpath=r"C:\Perl\site\lib\xmltv\tv_grab_dk_dr"
+#    if os.path.isfile(drpath):
+#        grabbers["dr"]=drpath
+#        print "Using DR grabber in "+grabbers["dr"]
+#    else:
+#        print "Kan ikke finde tv_grab_dk_dr grabberen. Fortsaetter uden."
 #kigger efter tv_grab_dk_dr_2009 grabberen:
 if "dr_2009" in mergeorder:
     drpath="./tv_grab_dk_dr_2009"
@@ -257,19 +259,19 @@ if "dr_2009" in mergeorder:
     else:
         print "Kan ikke finde tv_grab_dk_dr_2009 grabberen. Fortsaetter uden."
 #kigger efter tv_grab_se_swedb grabberen:
-if "swedb" in mergeorder: 
-    swedbpath="./tv_grab_se_swedb"
-    if not os.path.isfile(swedbpath):
-        swedbpath="/usr/bin/tv_grab_se_swedb"
-        if not os.path.isfile(swedbpath):
-            swedbpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_se_swedb"
-            if not os.path.isfile(swedbpath):
-                swedbpath=r"C:\Perl\site\lib\xmltv\tv_grab_se_swedb"
-    if os.path.isfile(swedbpath):
-        grabbers["swedb"]=swedbpath
-        print "Using swedb grabber in "+grabbers["swedb"]
-    else:
-        print "Kan ikke finde tv_grab_se_swedb grabberen. Fortsaetter uden."
+#if "swedb" in mergeorder: 
+#    swedbpath="./tv_grab_se_swedb"
+#    if not os.path.isfile(swedbpath):
+#        swedbpath="/usr/bin/tv_grab_se_swedb"
+#        if not os.path.isfile(swedbpath):
+#            swedbpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_se_swedb"
+#            if not os.path.isfile(swedbpath):
+#                swedbpath=r"C:\Perl\site\lib\xmltv\tv_grab_se_swedb"
+#    if os.path.isfile(swedbpath):
+#        grabbers["swedb"]=swedbpath
+#        print "Using swedb grabber in "+grabbers["swedb"]
+#    else:
+#        print "Kan ikke finde tv_grab_se_swedb grabberen. Fortsaetter uden."
 
 parsedicts = {}
 for file in os.listdir("."):
@@ -328,10 +330,18 @@ def formatExceptionInfo(maxTBlevel=5):
 
 def loadChannels (filename):
     loadLocals = {}
-    execfile(filename, globals(), loadLocals)
-    if (not loadLocals.has_key('version')) or (loadLocals['version'] == u'0.9'):
-        sys.stderr.write("Warning: You should update %s by deleting the old and make a new\n" % filename)
+    print "Running "+filename
+    #print" with globals="+globals()
+    #print " and loadLocals="+loadLocals
+    execfile(filename, {}, loadLocals)
+    if (not loadLocals.has_key('version')):
+        sys.stderr.write("No version found. You should update %s by deleting the old and make a new\n" % filename)
         sys.stderr.write("Sorry for the inconvienence\n")
+    else:
+        if (loadLocals['version'] == 121):
+            sys.stderr.write("Version is wrong. Is "+loadLocals['version']+" but should be "+u'121')
+            sys.stderr.write("You should update %s by deleting the old and make a new\n" % filename)
+            sys.stderr.write("Sorry for the inconvienence\n")
     return loadLocals['channels']
 
 def saveChannels (channels, filename):
@@ -339,11 +349,11 @@ def saveChannels (channels, filename):
     output.write(u'#!/usr/bin/env python\n')
     output.write(u'# -*- coding: UTF-8 -*-\n')
     output.write(u'\n')
-    output.write(u"progname  = u'tv_grab_dk_tdc'\n")
-    output.write(u"version   = u'0.99'\n")
+    output.write(u"progname  = u'tv_grab_dk_yousee'\n")
+    output.write(u"version   = u'121'\n")
     output.write(u'\n')
     output.write(u'# If you edit this file by hand, only change active and xmltvid columns.\n')
-    output.write(u'# (channel, channelPackageIdx, channelIdx, active, xmltvid)\n')
+    output.write(u'# (channel, channelUrl, active, xmltvid)\n')
     output.write(u'channels = [\n')
     for ch in channels[:-1]:
         output.write(str(ch) + u',\n')
@@ -371,22 +381,24 @@ for grabber, parsefile in parsedicts.iteritems():
     if grabber in configFiles:
         try:
             print "Configuring "+grabber+" grabber"
-            if grabber=="tdc":
+            if grabber=="yousee":
                 print "Loading config file:" + configFiles[grabber]
                 tdcset={}
                 for ch in ccset:
                     if ch in parsedicts[grabber]:
                         tdcset[parsedicts[grabber][ch]]="Yes"
-                channelTable=loadChannels(configFiles[grabber])
+                channelTable=loadChannels(CONFIGDIR+configFiles[grabber])
                 for index in range(len(channelTable)):
-                    channel, channelPackageIdx, channelIdx, active, xmltvid = channelTable[index]
+                    channel, channelUrl, active, xmltvid = channelTable[index]
                     active=xmltvid in tdcset
-                    channelTable[index] = (channel, channelPackageIdx, channelIdx, active, xmltvid)
+                    channelTable[index] = (channel, channelUrl, active, xmltvid)
                 saveChannels(channelTable, CONFIGDIR+configFiles[grabber])
             else:
                 f = open(CONFIGDIR+configFiles[grabber],"w")
                 if grabber in extraConfigLines:
                     f.write(extraConfigLines[grabber]+"\n")
+                if grabber=="swedb":
+                    f.write("root-url=http://tv.swedb.se/xmltv/channels.xml.gz\ncachedir="+CONFIGDIR+"cache\n")
                 for channel in [c for c in channels if c in parsedicts[grabber]]:
                     if not channel in ccset:
                         f.write("# ")
@@ -458,3 +470,4 @@ if os.path.isdir(out):
         out += "".join(mergeorder) + "_time"
     else: out += os.path.sep + "".join(mergeorder) + "_time"
 os.system('python timefix.py "%s_id" "%s"' % (df+"".join(mergeorder), out))
+
