@@ -129,20 +129,28 @@ my( $opt, $conf ) = ParseOptions( {
     stage_sub => \&config_stage,
     listchannels_sub => \&list_channels,
     load_old_config_sub => \&load_old_config,
-    version => '$Id: tv_grab_se_swedb.in,v 1.2 2006/05/24 13:10:59 mattiasholmlund Exp $',
+    version => '$Id: tv_grab_se_swedb.in,v 1.5 2009/07/23 06:53:47 mattiasholmlund Exp $',
     description => "Sweden (tv.swedb.se)",
 
 } );
 
 if (not defined( $conf->{cachedir} )) {
-    print STDERR "No cachedir defined.\n" .
+    print STDERR "No cachedir defined in configfile " . 
+                 $opt->{'config-file'} . "\n" .
                  "Please run the grabber with --configure.\n";
     exit 1;
 }
 
-
 if (not defined( $conf->{'root-url'} )) {
-    print STDERR "No root-url defined.\n" .
+    print STDERR "No root-url defined in configfile " .
+                 $opt->{'config-file'} . "\n" .
+                 "Please run the grabber with --configure.\n";
+    exit 1;
+}
+
+if (not defined( $conf->{'channel'} )) {
+    print STDERR "No channels selected in configfile " .
+                 $opt->{'config-file'} . "\n" .
                  "Please run the grabber with --configure.\n";
     exit 1;
 }
@@ -330,10 +338,9 @@ sub load_channels
     
     my %channels;
 
-    my $compressed = get( $url )
-        or die "Failed to fetch $url";
+    my $xmldata = getuncompressed( $url );
 
-    my $xmldata = Compress::Zlib::memGunzip( \$compressed );
+    defined( $xmldata ) or die "Failed to fetch $url";
 
     my $xml = XML::LibXML->new;
     
@@ -367,10 +374,9 @@ sub print_data
     my $url = $rooturl . $channel_id . "_" . UnixDate( $date, "%Y-%m-%d" ) . 
         ".xml.gz";
 
-    my $compressed = get( $url )
-        or return 0;
+    my $xmldata = getuncompressed( $url );
 
-    my $xmldata = Compress::Zlib::memGunzip( \$compressed );
+    defined $xmldata or return 0;
 
     my $in = new IO::Scalar \$xmldata;
     while( my $line = $in->getline() )
@@ -424,6 +430,26 @@ sub write_channel_list
 sub write_footer
 {
     print "</tv>\n";
+}
+
+sub getuncompressed {
+    my( $url ) = @_;
+
+    my $compressed = get( $url )
+        or return undef;
+
+    # Since LWP 5.827, the result from get() is already
+    # uncompressed.
+
+    my $uncompressed;
+
+    eval {
+	$uncompressed = Compress::Zlib::memGunzip( \$compressed );
+    };
+
+    $uncompressed = $compressed if not defined $uncompressed;
+
+    return $uncompressed;
 }
 
 ### Setup indentation in Emacs
