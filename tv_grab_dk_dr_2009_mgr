@@ -133,8 +133,7 @@ sub main()
 
     my %writer_args = ( encoding => 'utf-8' );
     if (defined $opt->{'output'}) {
-	my $fh = new IO::File ">".$opt->{'output'};
-#	my $fh = IO::File->new($opt->{'output'}, ">:utf8");
+	my $fh = IO::File->new($opt->{'output'}, ">:utf8");
 	die "Cannot write to $opt->{'output'}" if not $fh;
 	$writer_args{'OUTPUT'} = $fh;
     }
@@ -751,17 +750,21 @@ sub get_dr_channel_list($)
 sub getUrl($) {
     my ( $url ) = @_;
     my $ua = LWP::UserAgent->new;
+    #$ua->proxy(['http'], 'http://127.0.0.1:8888/'); # TESTING!!!!!!!!
     $ua->agent("xmltv/$XMLTV::VERSION");
     my $req = HTTP::Request->new(GET => $url);
     $req->header('Accept' => 'Accept=text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8');
-    $req->header('Accept-Charset' => 'ISO-8859-1');
-    #$req->header('Accept-Charset' => 'utf-8');
+    my $encoding = 'utf-8';
+    $req->header('Accept-Charset' => $encoding);
     my $res = $ua->request($req);
     if ($res->is_success) {
-	return $res->decoded_content(charset => 'ISO-8859-1');
+	if ($res->header('Content-Type') =~ /[^\/]+\/[^\/]+\;\s*charset=(.*)$/) {
+	    $encoding = $1;
+	}
+	return $res->decoded_content(charset => $encoding);
     }
     else {
-	print "Error: " . $res->status_line . " on url: " . $url . "\n";
+	print STDERR "Error: " . $res->status_line . " on url: " . $url . "\n";
 	return 0;
     }
 }
