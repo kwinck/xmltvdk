@@ -7,9 +7,10 @@ import os
 import codecs
 import sys
 
-#Rækkefølge grabbere skal merges - "dr_2009" ikke tilføjet endnu da det mangler
-# at blive testet ordentligt, men du kan tilføje den manuelt.
-mergeorder = ("jubii","tvtid","dr","ahot","tvguiden","swedb")
+# Rækkefølge grabbere skal merges
+# Grabberne er sorteret efter hvor mange dages oversigt de leverer, 
+# da det giver det mest stabile resultat
+mergeorder = ("dr","tvtid","yousee","jubii","dr_2009","swedb")
 
 mergeorderpath = os.path.normpath(os.path.join(os.path.dirname(sys.argv[0]),"mergeorder.conf"))
 if os.path.isfile(mergeorderpath):
