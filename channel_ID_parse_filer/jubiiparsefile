@@ -1,89 +1,145 @@
-DR1	dr1
+7	kanal7
+3sat	3sat
+6'eren	6eren
+6'eren Fyn	6erenfyn
+Animal HD	animal_hd
+Animal Planet	animal_planet
+ARD	ard
+Arte	arte
+BBC Entertainment	bbce
+BBC HD	bbchd
+BBC Knowledge	bbc_know
+BBC Lifestyle	bbc_life
+BBC World	bbc_world
+Body in Balance	Body
+Boomerang	Boomerang
+CANAL+ ACTION	canal_film3
+CANAL+ COMEDY	canal_mix
+CANAL+ DRAMA	canal_drama
+CANAL+ FILM HD	canal_hd
+CANAL+ FIRST	canal_film1
+CANAL+ HITS	canal_film2
+CANAL+ SPORT 1	canal_sport
+CANAL+ SPORT 2	canal_sport2
+CANAL+ SPORT EXTRA	canal_sport_extra
+CANAL+ SPORT HD	canal_sport_hd
+CANAL9	canal_9
+Cartoon	cartoon_network
+CNN	cnn
+Discovery Channel	discovery_channel
+Discovery HD	discovery_hd
+Discovery Science	discovery_science
+Discovery Travel & Living	discovery_travel
+Discovery World	discovery_world
+Disney Channel sca.	disney_channel
+Disney XD	disneyxd
+dk4	dk4
 DR HD	dr_hd
 DR K	dr_kultur
 DR Ramasjang	dr_ramasjang
-TV 2	tv2
-TV3	tv3
-TV3+	3plus
-TV3 Puls	3puls
-Kanal 4	tvdanmark
+DR Update	drupdate
+DR1	dr1
 DR2	dr2
-TV 2 Zulu	zulu
-TV 2 Charlie	charlie
+DSF	dsf_sport
+Eurosport	eurosport
+Eurosport 2	eurosport2
+Eurosport HD	eurosporthd
+History Channel	history_channel
+Kanal 4	tvdanmark
+Kanal 4 Aalborg	kanal4aalborg
 Kanal 5	kanal5
-SBS Net	sbsnet
-TV1000	tv1000
-DK4	dk4
-Disney Channel sca.	disney_channel
-TV/MIDT-VEST	tv2_midt_vest
-TV 2/Bornholm	tv2_bornholm
-Kanal København	kanal_kobenhavn
-Kanal 4 Fyn	tvdk_fyn
-TV 2 / Østjylland	tv2_ostjylland
-TV1000 Nordic	tv1000_nordic
-Kanal 4 Aalborg	tvdk_aalborg
-TV2/NORD	tv2_nord
-CANAL+ FILM	canal_film1
-C MORE FILM	c_more_film
-Radio Ådalen	radio_aadalen
-CANAL+ SPORT	canal_sport
-TV1000 Classic	tv1000_classic
-TV1000 Family	tv1000_family
-Kanal 4 Østjylland	tvdk_aarhus
-Viasat Sport 3	viasat_sport_3
-Viasat Explorer	viasat_explorer
-Viasat Sport 1	viasat_sport
-TV 2/Lorry	tv2_lorry
-TV SYD	tv2_syd
-Viasat Nature/Crime	tv6
-Viasat Sport 2	viasat_sport_2
-CANAL+ FILM2	canal_film2
-TV 2 Film	tv2_film
-TV 2/FYN	tv2_fyn
-CANAL+	canal_dk
-TV1000 Action	tv1000_action
+Kanal Bornholm	kanalbornholm
+Kanal Fyn	kanalfyn
+Kanal Hovedstaden	kanalhoved
+Kanal Syd	kanalsyd
+Kanal Øst	kanaloest
+Kanal Østjylland	kanaloestjyl
+Mokka	mokka
+MTV	mtv
+MTV BASE	mtv_base
+MTV Dance	mtv_dance
+MTV HD	mtvhd
+MTV Hits	mtvhits
+MTV ONE	mtvone
+MTV ONE +1	mtvoneplus
+MTV R	mtvr
+MTV TWO	mtv2
+National Geographic Channel	nat_geo_channel
+National Geographic HD	ngchd
+National Geographic Wild	nat_geo_wild
+NDR	ndr
+Nickelodeon	nickelodeon
+NRK1	nrk_1
+NRK2	nrk_2
+Playhouse Disney	play_disney
+ProSieben	pro_7
+RTL	rtl
+RTL II	rtl_2
+Rush HD	rush_hd
+SAT1	sat_1
+SF-Kanalen	sfkanalen
+Showtime	showtime
+Silver	silver
+SilverHD	silverhd
+Sky News	sky_news
+Star!	star
+SuperRTL	super_rtl
 SVT1	sverige_1
 SVT2	sverige_2
-Cartoon	cartoon_network
-Nickelodeon	nickelodeon
-CNN	cnn
-MTV	mtv
-Eurosport	eurosport
-Jetix	jetix
-Voice TV	the_voice_tv
-Discovery Civilisation	discovery_world
-BBC Prime	bbc_prime
-TV4 Sverige	sverige_4
-TV3 Norge	norge_3
-RTL II	rtl_2
-Viasat Sport Sverige	viasat_sport_sverige
-VOX	vox
-NRK2	nrk_2
-Discovery Channel	discovery_channel
-SuperRTL	super_rtl
-ARD	ard
-TV3 Sverige	sverige_3
-ZDF	zdf
-Animal Planet	animal_planet
-National Geographic Channel	nat_geo_channel
-Arte	arte
-3sat	3sat
-RTL	rtl
-NDR	ndr
-DSF	dsf_sport
-Hallmark Channel	hallmark
+TCM	tcm
+TV 2	tv2
+TV 2 / Østjylland	tv2_ostjylland
+TV 2 Charlie	charlie
+TV 2 Film	tv2_film
+TV 2 Filmkanlen Norge	tv2_film_norge
+TV 2 NEWS	tv2_news
 TV 2 Norge	norge_2
+TV 2 Sport	tv2_sport
+TV 2 Sport HD	tv2_sporthd
+TV 2 Sport Norge	
+TV 2 Zebra Norge	
+TV 2 Zulu	zulu
+TV 2/Bornholm	tv2_bornholm
+TV 2/FYN	tv2_fyn
+TV 2/Lorry	tv2_lorry
+TV Nord Plus	tv_nord_plus
+TV SYD	tv2_syd
+TV/MIDT-VEST	tv2_midt_vest
+TV1000	tv1000
+TV1000 Action	tv1000_action
+TV1000 Classic	tv1000_classic
+TV1000 Drama	tv1000_drama
+TV1000 Family	tv1000_family
+TV1000 HD	tv1000_hd
+TV1000 Nordic	tv1000_nordic
+TV2/NORD	tv2_nord
+TV3	tv3
+TV3 Norge	
+TV3 Puls	3puls
+TV3 Sverige	sverige_3
+TV3+	3plus
+TV4 fakta	tv4_fakta
+TV4 film	tv4_film
+TV4 guld	tv4_guld
+TV4 komedie	tv4_komedie
+TV4 Science Fiction	tv4_scifi
+TV4 sport	tv4_sport
+TV4 Sverige	sverige_4
+TV4+	tv4_plus
+TV400	tv400
 TV5MONDE Europe	tv_5
 Vh1	vh1
-SAT1	sat_1
-ProSieben	pro_7
-TCM	tcm
-Discovery Travel & Living	discovery_travel
-Discovery Science	discovery_science
-NRK1	nrk_1
-BBC World	bbc_world
-_Playboy Channel	playboy_channel
-TV2 Øst	tv2_ost
-CANAL9	canal_9
-6´eren	6eren
-Disney XD	disneyxd
+VH1 Classic	vh1cla
+Vh1 europe	vh1europe
+VH1 UK	vh1uk
+Viasat Explorer	viasat_explorer
+Viasat Fotboll	viasat_fotboll
+Viasat Golf	viasat_golf
+Viasat History	viasat_history
+Viasat Motor	viasat_motor
+Viasat Nature/Crime	viasat_nature
+Viasat Sport Sverige	viasat_sport_sverige
+Viva	viva
+Voice TV	voicetv
+VOX	vox
+ZDF	zdf
