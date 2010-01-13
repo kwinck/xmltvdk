@@ -1,7 +1,7 @@
-2film.yousee.dk	2film
-2news.yousee.dk	2news
-2sp-hd.yousee.dk	2sporthd
-2sport.yousee.dk	2sport
+2film.yousee.dk	tv2_film
+2news.yousee.dk	tv2_news
+2sp-hd.yousee.dk	tv2_sporthd
+2sport.yousee.dk	tv2_sport
 3puls.yousee.dk	3puls
 6eren.yousee.dk	6eren
 al-jaz.yousee.dk	aljazeera
@@ -22,8 +22,8 @@ canal9.yousee.dk	canal_9
 cartoo.yousee.dk	cartoon_network
 charli.yousee.dk	charlie
 cnn.yousee.dk	cnn
-cplusact.yousee.dk	canal_act
-cpluscom.yousee.dk	canal_com
+cplusact.yousee.dk	canal_film3
+cpluscom.yousee.dk	canal_mix
 cplusdra.yousee.dk	canal_drama
 cplusext.yousee.dk	canal_sport_extra
 cplusf-h.yousee.dk	canal_fh
@@ -123,9 +123,9 @@ tv-act.yousee.dk	tv1000_action
 tv-cla.yousee.dk	tv1000_classic
 tve.yousee.dk	tve
 tv-fam.yousee.dk	tv1000_family
-tv-mon.yousee.dk	tvmon
+tv-mon.yousee.dk	montenegro
 tv-nor.yousee.dk	tv1000_nordic
-tv-pol.yousee.dk	tvpol
+tv-pol.yousee.dk	polonia
 update.yousee.dk	drupdate
 vh1.yousee.dk	vh1
 vh1cla.yousee.dk	vh1cla
