@@ -95,6 +95,7 @@ def get_file_encoding(f):
 # Written by Fredrik Lundh
 # Taken from http://effbot.org/zone/re-sub.htm#unescape-html
 # Modified to not unescape special chars & < >
+# Also added convertion of lone & to &amp; as yousee use that sometimes.
 def html_unescape(text):
 	def fixup(m):
 		text = m.group(0)
@@ -117,7 +118,9 @@ def html_unescape(text):
 			except KeyError:
 				pass
 		return text # leave as is
-	return re.sub("&#?\w+;", fixup, text)
+	def remove_amps(m):
+		return u'&amp;'
+	return re.sub(u'&(?!#?\w+;)', remove_amps, re.sub(u'&#?\w+;', fixup, text))
 
 
 class BaseTVGrabber:
