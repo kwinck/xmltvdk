@@ -1,11 +1,25 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 #
+# Fetch tv programme data from ontv.dk
+#
+# ----------------------------------------------------------------------------
+# "THE BEER-WARE LICENSE" (Revision 42):
+# http://svalgaard.net/jens/ wrote this file. As long as you retain
+# this notice you can do whatever you want with this stuff. If we
+# meet some day, and you think this stuff is worth it, you can buy me
+# a beer in return, Jens Svalgaard Kohrt
+# ----------------------------------------------------------------------------
+#
+# (c) 2008-2010 http://svalgaard.net/jens/
+#
 VERSION = "$Id$"
 
+import copy
 import codecs
 import datetime
 import gzip
+import htmlentitydefs
 import locale
 import optparse
 import os
@@ -17,6 +31,8 @@ import sys
 import time
 import urllib
 import urllib2
+import xml.sax.saxutils
+escape = xml.sax.saxutils.escape
 socket.setdefaulttimeout(10)
 
 # ---------- Kig på evt. kommandolinieargumenter ---------- #
@@ -100,6 +116,7 @@ To grab listings:               %prog [options]"""
         else:
             sys.stderr.write("Unknown cache-policy: %s\n" %
                              repr(options.cachepolicy))
+            sys.stderr.write("Possible cache-policies: %s\n" % ", ".join(cachepolicies))
             sys.exit(1)
 
     if args:
@@ -135,18 +152,27 @@ To grab listings:               %prog [options]"""
     return options
 options = parseOpts()
 
+# ---------- Setup stderr og stdout ----------
+
+def getNiceEncoding():
+    enc = locale.getpreferredencoding()
+    
+    # try to write æøå to this and see if we fail
+    try:
+        x = u'æøåÆØÅá'.decode(enc)
+    except UnicodeEncodeError, u:
+        # ignore the locale since this does not allow us to write what we want
+        enc = 'UTF-8'
+    return enc
+
 # ensure that we can do Danish characters on stderr
-sys.stderr = codecs.getwriter(locale.getpreferredencoding())(sys.stderr)
+sys.stderr = codecs.getwriter(getNiceEncoding())(sys.stderr)
 
 if options.verbose:
     log = sys.stderr.write
 else:
+    # simply ignore this
     log = lambda x: x
-
-# as per 2009.02.10 this does no longer work
-sys.stderr.write(u"2009.02.10: Denne grabber virker ikke mere!\n")
-sys.stderr.write(u"2009.02.10: Ontv har opdateret deres hjemmeside.\n")
-sys.exit(1)
 
 # ---------- Læs fra konfigurationsfil ---------- #
 
@@ -171,6 +197,7 @@ if not (options.listchannels or options.configure):
             val = line[len("cache-policy"):].strip()
             if val.lower() not in cachepolicies:
                 log("Unknown cache-policy in line %d: %s\n" % (i+1,repr(val)))
+                log("Possible cache-policies: %s\n" % ", ".join(cachepolicies))
                 sys.exit(1)
             if options.cachepolicy is None: # i.e., not set from commandline
                 options.cachepolicy = cachepolicies.index(val.lower())
@@ -213,13 +240,29 @@ if options.cachedir is not None:
             log("Cannot create cache directory '%s'.\n" % options.cachedir)
             sys.exit(1)
 
+# ---------- URL templates --------------- #
+
+ROOT_URL        = "http://ontv.dk/"
+CHANNELS_URL    = ROOT_URL + "ajax/channel_list.php?language=%s"
+CHANNEL_DAY_URL = ROOT_URL + 'tv/%s/%s'
+PROGRAMME_URL   = ROOT_URL + "programinfo/%s"
+
+def getDayURL(channelId, day):
+    '''Return e.g., http://ontv.dk/tv/6/2010-01-27'''
+    global CHANNEL_DAY_URL
+    return CHANNEL_DAY_URL % (channelId, parseDay(day))
+
+def getProgrammeURL(programmeId):
+    global PROGRAMME_URL
+    return PROGRAMME_URL % programmeId
+
 # ---------- Urlopen via cachen ---------- #
 
 # (minimum-cache-policy-level-to-save-this, prefix-filename, prefix-url)
 url2fn = [
-    (1, "ontv-sta-logo-",  "http://ontv.dk/extern/widget/kanalLogo.php?id="),
+    (1, "ontv-sta-logo-",  "http://ontv.dk/imgs/epg/logos/"),
     (1, "ontv-dyn-prg-",   "http://ontv.dk/programinfo/"),
-    (2, "ontv-dyn-day-",   "http://ontv.dk/?s=tvguide_kanal&guide=&type=&kanal="),
+    (2, "ontv-dyn-day-",   "http://ontv.dk/tv/"),
     (2, "ontv-sta-other-", "http://ontv.dk/"),
     (3, "ontv-somewhere-", "http://"), # we should never reach this line
     ]
@@ -307,27 +350,42 @@ def urlopen(url, forceRead = False):
         except urllib2.HTTPError:
             return (False, None)
         return (False, urllib2.urlopen(url).read())
-        
 
-# ---------- Lav kanal liste ---------- #
+def readUrl(url, forceRead = False):
+    """readUrl(url, forceRead) -> (cache-was-used, data-from-url)
+
+    If forceRead is True and using smart cache policy, then read url even
+    if a cached version is available"""
+    RETRIES = 3
+    for i in range (RETRIES):
+        try:
+            cu, data = urlopen(url, forceRead)
+            if not data:
+                continue
+            return (cu,data)
+        except: pass
+    return (False, None)
+
+
+# ---------- Lav kanalliste ---------- #
 def parseChannels():
     """Returns a list of (channelid, channelname) for all available
     channels"""
-    kanaldata = urlopen("http://ontv.dk/")[1]
-    kanaldata = kanaldata.decode("iso-8859-1")
-    kanalliste = []
-    lande = re.findall('div id="channels([A-Z]{2})"', kanaldata)
-    for land in lande:
-        start = kanaldata.find('div id="channels%s"' % land)
-        end = kanaldata.find('div id="channels', start+1)
-        if end < 0:
-            end = kanaldata.find("<script",start+1)
-        kanaler = re.findall(r'<a href="/tv/(\d+)"[^<>]*?>([^<>]+?)</a>',
-                             kanaldata[start:end], re.DOTALL)
-        for id, navn in kanaler:
-            kanalliste.append((int(id), land+"_"+navn))
-    kanalliste.sort()
-    return kanalliste
+    global ROOT_URL, CHANNELS_URL
+    
+    # find list of languages/groups
+    data = readUrl(ROOT_URL)[1].decode("utf-8")
+    languages = re.findall(r"showChannels\('(..)'\);",data)
+
+    # walk through all "languages"
+    channels = []
+    for lang in languages:
+        data = urlopen(CHANNELS_URL % lang)[1].decode("utf-8")
+        for (no,desc) in re.findall(r'<a href="/tv/(\d+)">([^<]+)</a>',data):
+            channels.append((no, desc + " " + lang.upper()))
+    channels.sort(key = lambda x: (int(x[0]), x[1].lower()))
+    return channels
+
 
 # ---------- Funktioner til at lave tidszoner korrekt ---------- #
 # se evt. timefix.py
@@ -414,706 +472,920 @@ def parseDay (day):
     date = time.strftime("%Y-%m-%d", n)
     return date
 
-def jumptime (days = 0, hours = 0, minutes = 0):
+def jumptime (days = 0, hours = 0, minutes = 0, tz = -1):
     # first find correct day
     day = noon(days)[:3]
-    return day + (hours,minutes,0,0,1,-1)
+    return day + (hours,minutes,0,0,1,tz)
 
-cdataexpr = re.compile(r"<!\[CDATA\[([^<>]*)\]\]>")
-retries = 3
-def readUrl (url, forceRead = False):
-    """readUrl(url, forceRead) -> (cache-was-used, data-from-url)
+def unescape(text):
+    def fixup(m):
+        text = m.group(0)
+        if text[:2] == "&#":
+            # character reference
+            try:
+                if text[:3] == "&#x":
+                    return unichr(int(text[3:-1], 16))
+                else:
+                    return unichr(int(text[2:-1]))
+            except ValueError:
+                pass
+        else:
+            # named entity
+            try:
+                text = unichr(htmlentitydefs.name2codepoint[text[1:-1]])
+            except KeyError:
+                pass
+        return text # leave as is
+    return re.sub("&#?\w+;", fixup, text)
+
+def compact(s, alsoLineBreaks = False):
+    s = unescape(s)
+    if alsoLineBreaks:
+        s = re.sub("[\n\r]+"," ", s)
+    s = re.sub("[ \t]+"," ", s)
+    s = re.sub("> ",">",s)
+    s = re.sub(" <","<",s)
+    return s.strip()
+
+class Tag:
+    def __init__(self, name, text = '', parent = None):
+        if "_" in name and "=" in name:
+            sp = name.split("_",1)
+            self.name = sp[0]
+            sp = sp[1].split("=",1)
+            self.attr = [(sp[0], sp[1])]
+        else:
+            self.name = name
+            self.attr = [] # [(k,v), (k,v), ...]
+        self.children = []
+        self.parent = parent
+        self.setText(text)
+
+    def setText(self, text):
+        if 'title' in self.name:
+            text = text.strip(".")
+            for ig in ['Fredagsfilm:',':','.','(G)','(g)']:
+                while text.startswith(ig):
+                    text = text[len(ig):].strip()
+                while text.endswith(ig):
+                    text = text[:-len(ig)].strip()
+            m = re.match(ur'(.*?) ?\((\d+)\)', text)
+            if m:
+                text = m.group(1)
+                self.parent.addTag('episode-num_system=xmltv_ns', '.%s.' % (int(m.group(2))-1))
+        self.text = text
+
+    # attributes
+    def __setitem__(self, key, value):
+        '''Set attribute on this tag'''
+        # check if the attribute is already set
+        for i in range(len(self.attr)):
+            if self.attr[i][0] == key:
+                # found it!
+                self.attr[i] = (key,value)
+                break
+        else:
+            self.attr.append((key,value))
+    def __getitem__(self, key):
+        for (k,v) in self.attr:
+            if k == key:
+                return v
+        raise KeyError(key)
     
-    If forceRead is True and using smart cache policy, then read url even
-    if a cached version is available"""
-    for i in range (retries):
+    # children
+    def getChild(self, tagname, createIfNotPresent = False):
+        for child in self.children:
+            if child.name == tagname:
+                return child
+        if createIfNotPresent:
+            return self.addChild(Tag(tagname,'', self))
+        return None
+    def hasChild(self, tagname):
+        for child in self.children:
+            if child.name == tagname:
+                return child
+        return None
+
+    def addChild(self, child):
+        '''Add this instance of Tag as a child'''
+        assert(isinstance(child, Tag))
+        self.children.append(child)
+        return child
+    def addTag(self, tagname, tagtext = ''):
+        ''' tagname can be, e.g, credits:actor or title_da or video:aspect!16:9'''
+        cur = self
+        if '!' in tagname:
+            tagname, tagtext = tagname.split('!')
+        tagnames = tagname.split(':') 
+        for tn in tagnames[:-1]:
+            cur = cur.getChild(tn, True)
+        cur.addChild(Tag(tagnames[-1], tagtext, cur))
+        return cur
+
+    # print this
+    def __unicode__(self):
+        return self.toString()
+    def toString(self, indent = ''):
+        if '_' in self.name:
+            tname, lang = self.name.split('_',1)
+            attrs = ['lang="%s"' % lang]
+        else:
+            tname = self.name
+            attrs = []
+        attrs.extend([u'%s="%s"' % (k,v) for (k,v) in self.attr])
+        attrs = u' '.join(attrs)
+        if attrs:
+            attrs = ' ' + attrs
+        t = [escape(s.strip()) for s in self.text.split("\n") if s.strip()]
+        
+        if not (self.children or t):
+            return indent + '<%s%s />\n' % (tname, attrs)
+
+        if self.children:
+            res = indent + '<%s%s>%s\n' % (tname, attrs, " ".join(t))
+            cs = [c.toString(indent + '  ') for c in self.children]
+            # remote duplicates
+            rs = {}
+            for c in cs:
+                if not c in rs:
+                    res += c
+                rs[c] = 1
+            res += indent + '</%s>\n' % tname
+        else:
+            res = indent + '<%s%s>' % (tname, attrs)
+            if len(t) == 1:
+                res += '%s</%s>\n' % (t[0], tname)
+            else:
+                t = "\n".join([indent+'  '+tl for tl in t])
+                res += '\n%s\n%s</%s>\n' % (t, indent, tname)
+        return res
+
+class Programme(Tag):
+    def __init__(self, *args):
+        Tag.__init__(self, *args)
+        self.next = None
+    def setTime(self, tag, timest):
+        '''timest has the format [day, start-hour, start-minute, tz]
+        where day is an offset relative to today'''
+        self.__dict__[tag] = timest
+        self[tag] = ts2string(jumptime(*timest))
+
+def slightlystripped(s):
+    s = s.replace('\t', ' ')
+    s = re.sub('(</?p>|<br ?/?>|</?h[^>]+>|</?t[^>]+>)','\n', s).strip()
+    s = s.replace('&nbsp;',' ')
+    s = s.replace('&shy;', '-')
+    s = re.sub('</?[^>]*>','', s) # remove all tags
+    s = re.sub(' *[\r\n]+ *','\n',s)
+    s = s.replace('\n-\n','\n')
+    return s
+
+def _isNamePart(s):
+    '''Return True iff s could be part of a name, e.g., 
+    Nielsen von ABBA etc'''
+    if s in ['von', 'dff', 'Mr.', 'Dr.']:
+        return True
+    if s in ['CSI']:
+        return False
+    for p in ['Mc','Mac','De',"O'"]:
+        if s.startswith(p):
+            return _isNamePart(s[len(p):])
+    # It has to be either Titlecase or UPPERCASE
+    if not (s == s.title() or s == s.upper()):
+        return False
+    if len(s) == 2 and s == s.upper() and s[1] == '.':
+        return True
+    if re.search(ur'(?u)\W', s) or re.search(ur'[_\d]', s):
+        # it contains something which is not a letter
+        return False
+    return True
+
+def couldBePerson (person):
+    '''Test whether a string could be the name of a person'''
+    if len(person) < 2 or person.count(" ") >= 6:
+        # too short or too long
+        return False
+    sp = re.split(ur'(?: |-)', person)
+    return False not in map(_isNamePart, sp)
+
+def getNames(s):
+    '''Returns list of names in the string s. If this does not look like a list
+    of names, None is returned'''
+    s = s.strip('.').strip()
+    for ending in ['mfl', 'm.fl']:
+        if s.endswith(ending):
+            s = s[:-len(ending)].strip()
+    s = re.split(ur'\s*(?:,| og| efter (?:bog|roman) af| &| and)\s+', s)
+    if False in map(couldBePerson, s):
+        return None
+    else:
+        return s
+
+# ---------- Filtre der omdanner en bestemt del af beskrivelsen ----------
+
+_filters = {}
+def addFilter(ps, filter, *args):
+    global _filters
+    if ps not in _filters:
+        _filters[ps] = []
+    _filters[ps].append((filter, args))
+
+def joinWithNextIfEndsWith(prg, all, expr):
+    expr = ur'(?m)(%s)\n' % expr
+    all = re.sub(expr, ur'\1 ', all)
+    return all
+
+def splitByCreditPrefix(prg, all, prefix, addColon = True):
+    'Split into mulitiple lines if ...'
+    if addColon:
+        expr = ur'(?m)((?:%s):)' % prefix
+    else:
+        expr = ur'(?m)(%s)' % prefix        
+    return re.sub(expr, ur'\n\1', all)
+    
+def endsOrStartsWith(prg, line, rexpr, result):
+    '''If a line ends or starts with something maching rexpr, then the
+    particular part of the line is removed, and result is added to
+    prg'''
+    rexpr = ur'(?:%s)'% rexpr # wrap the expression
+    rexpr = ur'(^%s|%s\.?$)' % (rexpr, rexpr) # either starting or ending with
+    m = re.search(rexpr, line)
+    if m:
+        s,e = m.start(), m.end()
+        if s == 0:
+            # found at the beginning of the line
+            line = line[e:].strip()
+        else:
+            line = line[:s].strip()
+        res = result and m.expand(result)
+        if res:
+            prg.addTag(res)
+        return line
+    else:
+        return line
+
+def prefixFilter(prg, line, prefix, func):
+    rexpr = ur'(?:^%s)' % prefix
+    m = re.search(rexpr, line)
+    if not m:
+        return line
+    start = line[:m.end()].strip()
+    rest = line[m.end():].strip()
+
+    return func(prg, line, start, rest)
+def addPrefixFilter(prefix, func):
+    addFilter(10, splitByCreditPrefix, prefix, False)
+    addFilter(70, prefixFilter, prefix, func)
+
+
+def extractCredit(prg, line, prefix, creditType, keepPrefix):
+    '''Prefix is e.g., Vært or Kommentator(?:er)?'''
+    if prefix:
+        rexpr = ur'(?:^%s:)' % prefix
+    else:
+        rexpr = ur'(?:^.*?:)'
+    m = re.search(rexpr, line)
+    if not m:
+        return line
+    start = line[:m.end()].strip()
+    rest = line[m.end():].strip()
+    
+    names = getNames(rest)
+
+    if not names:
+        return line
+    if not prefix:
+        pnames = getNames(start[:-1])
+        if not pnames or len(pnames) != 1 or len(names) != 1:
+            return line
+    
+    for name in names:
+        if keepPrefix:
+            txt = '%s %s' % (start, name)
+        else:
+            txt = name
+        prg.addTag('credits:%s' % creditType, txt)
+    return ''
+
+def addCreditFilter(creditType, prefix, keepPrefix):
+    addFilter(10, splitByCreditPrefix, prefix)
+    addFilter(80, extractCredit, prefix, creditType, keepPrefix) 
+
+def applyFilters(prg, desc):
+    '''Apply all known filters to desc and add information to prg. The
+    remaining lines are returned'''
+    global _filters
+
+    keys = sorted(_filters.keys())
+
+    for k in [k for k in keys if k < 15]:
+        for (f,args) in _filters[k]:
+            desc = f(prg, desc, *args)
+
+    lines = desc.split("\n")
+    for k in [k for k in keys if 15 <= k < 100]:
+        for i in range(len(lines)):
+            line, oline = lines[i], None
+            while line and oline != line:
+                oline = line
+                for (f, args) in _filters[k]:
+                    line = f(prg, line, *args)
+                    if not line:
+                        break
+            lines[i] = line
+
+    lines = filter(None, lines)
+    desc = "\n".join(lines)
+
+    for k in [k for k in keys if k >= 100]:
+        for (f,args) in _filters[k]:
+            desc = f(prg, desc, *args)
+
+    return desc
+
+def addAllMetaData(prg, desc):
+    desc = applyFilters(prg, desc)
+    if desc and desc != 'Ingen beskrivelse...':
+        prg.addTag('desc', desc)
+
+
+
+# pass 0 
+# input: lines as one thing
+# join multiple lines into one
+P = 0
+addFilter(P, joinWithNextIfEndsWith, ':')
+addFilter(P, joinWithNextIfEndsWith, ' og')
+
+# pass 10
+# input: lines as one thing
+# split some lines into more
+
+# pass 20 
+# per line : redo until line does not change
+P = 20
+addFilter(P, endsOrStartsWith, ur'4:3', ur'video:aspect!4:3')
+addFilter(P, endsOrStartsWith, ur'16:9', ur'video:aspect!16:9')
+addFilter(P, endsOrStartsWith, ur'Breitbild', ur'video:aspect!16:9')
+addFilter(P, endsOrStartsWith, ur'\(?Vises i bredformat\)?', ur'video:aspect!16:9')
+
+addFilter(P, endsOrStartsWith, ur'\(S/H\)', ur'video:colour!no')
+
+addFilter(P, endsOrStartsWith, ur'Dolby', ur'audio:stereo!surround') 
+addFilter(P, endsOrStartsWith, ur'Dolby 5.1', ur'audio:stereo!surround') 
+addFilter(P, endsOrStartsWith, ur'Surround', ur'audio:stereo!surround') 
+addFilter(P, endsOrStartsWith, ur'\(\([sS]\)\)', ur'audio:stereo!surround')
+addFilter(P, endsOrStartsWith, ur'\([sS]\)', ur'audio:stereo!stereo')
+addFilter(P, endsOrStartsWith, ur'STEREO', ur'audio:stereo!stereo')
+addFilter(P, endsOrStartsWith, ur'Stereo', ur'audio:stereo!stereo')
+addFilter(P, endsOrStartsWith, ur'Zweikanalton', ur'audio:stereo!stereo')
+
+addFilter(P, endsOrStartsWith, ur'\(TTV\)', ur'subtitles_type=teletext')
+addFilter(P, endsOrStartsWith, ur'Videotext', ur'subtitles_type=teletext')
+
+addFilter(P, endsOrStartsWith, ur'[\("][Uu]egnet for (?:mindre )?børn[\)"]\.?', ur'rating_system=DK!\1')
+
+addFilter(P, endsOrStartsWith, ur'Sendes samtidig på DR HD', None)
+
+
+
+TODO = """
+        ("utxt", "utxt", True),
+        ("(t)", "utxt", True),
+        ("(g)", None, "(G) is not used"),
+        ("(fortsat)", None, None),
+"""
+
+def fType(prg, line, prefix, rest):
+    # Sometimes the category is shown as e.g., Type: serie
+    # Genre: Drama/Science-fiction
+    # Genre: Musical comedy, drama
+    m = re.match(u'^([- a-zA-ZæøåÆØÅ/,]*)\\.?$', rest)
+    if m:
+        for txt in re.split(' *[/,]+ *', m.group(1)):
+            if txt:
+                prg.addTag('category',txt.strip())
+        return ''
+    return line
+addPrefixFilter(ur"(?:Genre|Type):", fType)
+
+def fFrom(prg, line, prefix, rest):
+    # Fra: 2010 Denmark
+    # Fra: 1969 Frankrig & Monaco
+    # Fra: 1969 Frankrig/Monaco
+    # Fra: 1990-2001 USA
+    # Fra: 1990/2001 USA
+    # Fra: Tyskland
+    # Fra: 2000 USA, Canada
+    # Fra:  U.S.A.
+    m = re.match(ur'^(\d*(?:[-/]\d+)?) ?([a-zA-Z &,]*)$', rest)
+    if not m:
+        m = re.match(ur'^(\d*(?:[-/]\d+)?) ?(U.S.A.)$', rest)
+    if m:
+        year, country = m.groups()
+        if year:
+            for y in year.replace('/','-').split('-'):
+                if y.strip():
+                    prg.addTag('date', y)
+        if country:
+            for c in re.split(ur'[&,/]', country):
+                if c.strip():
+                    prg.addTag('country_da', c.strip())
+        return ''
+    return line
+addPrefixFilter(ur"Fra:", fFrom)
+
+def fProduction(prg, line, prefix, rest):
+    '''
+    Produktion: BLU A/S for TV 2|DANMARK, 2010.
+    Produktion: BBC, 1997.
+    Produktion: Channel 4, 2006.
+    Produktion: CBS Productions, Caroline Productions og Moon Water Productions, 1994-2003.
+    Produktion: Chuck Lorre Productions i samarbejde med 20th Century Fox, 1998.
+    Produktion: 20th Century Fox & CBS, 1999.
+    Produktion: Nelvana Ltd./Ellipse Animation, TMO Loonland m.fl., Canada, 2000.    
+    Produktion: TV 2|SPORTEN, 2010.
+    Produktion: IWC Media, 2006, for Channel 4.
+    Produktion: Nordisk Film, 2010, for TV 2¦Kommunikation.
+    '''
+    m = re.match(ur'^(.*?), (\d\d\d\d(?:-\d+)?).?$', rest)
+    if m:
+        g, y = m.groups()
+    else:
+        m = re.match(ur'^(.*?), (\d\d\d\d(?:-\d+)?),( for .*)?.?$', rest)
+        if not m:
+            return line
+        g = m.group(1).strip() +' '+ m.group(3).strip()
+        y = m.group(2)
+        
+    gs = re.split(ur'(?:,| for| &| og| i samarbejde med) ', g)
+    for i in range(len(gs)):
+        g = gs[i]
+        for x in ['.','mfl','m.fl']:
+            if g.endswith(x):
+                g = g[:-len(x)].strip()
+        gs[i] = g
+    
+    for y_ in y.split('-'):
+        if y_.strip():
+            prg.addTag('date', y_)
+    for g in gs:
+        if g.strip():
+            prg.addTag('credit:producer', g.strip())
+    return ''
+addFilter(95, prefixFilter, ur"Produi?ktion:", fProduction)
+
+def fEpisode(prg, line, prefix, rest):
+    # Episode: 1:2
+    # Episode: Del 1 av 9
+    m = re.match(ur'(?:\(?|Del )(\d+)(?:(?::| av )(\d+))?\)?\.*', rest)
+    if m:
         try:
-            cu, data = urlopen(url, forceRead)
-            if not data:
-                continue
-            data = cdataexpr.sub(r"\1", data)
-            return (cu,data)
-        except: pass
-    return (False, None)
+            m0 = int(m.group(1))-1
+            if m.group(2):
+                m1 = int(m.group(2))
+                txt = ".%d/%d." % (m0,m1)
+            else:
+                txt = ".%d." % m0
+            prg.addTag('episode-num_system=xmltv_ns', txt)
+            return ''
+        except ValueError:
+            pass
+    return line
+addPrefixFilter(ur'(?:Fortløbende|Originalt?|) ?[Ee]pisode(?:nr\.?|nummer|)\.?:?', fEpisode)
 
-import htmlentitydefs
-k = map(len,htmlentitydefs.entitydefs.keys())
-ampexpr = re.compile("&(?![a-zA-Z0-9]{%d,%d};)" % (min(k),max(k)))
+def fProgramcodes(prg, line, prefix, rest):
+    # Programkoder: ((S)), Vises i bredformat.
+    codes = rest.strip(".").split(",")
+    remaining = []
+    for code in codes:
+        code = code.strip()
+        if code:
+            for (f, args) in _filters[20]:
+                code = f(prg, code, *args)
+                if not code:
+                    break
+            if code:
+                remaining.append(code)
+    if remaining:
+        log('\nEXTRA Programcode: ' + repr(remaining) + '\n')
+        return prefix + " " + ", ".join(remaining)
+    else:
+        return ''
+addPrefixFilter(ur'Programkoder:', fProgramcodes)
+            
 
-dayexpr = re.compile(r'(\d\d)[:.](\d\d):</p>(?:.*?)<a href="/programinfo/(\d+)">(.*?)\s*</a>')
-startendexpr = re.compile('(\d\d)[:.](\d\d) - (\d\d)[:.](\d\d)')
-infoexpr = re.compile(r'(?:<p><strong>|<td><p style="margin-top:0px;">)(.*?)</p><p>', re.DOTALL)
-imgexpr = re.compile(r'src="(http://ontv.dk/imgs/print_img.php.*?)"')
-extraexpr = re.compile(r'<strong>(.*?):</strong>\s*(.*?)<')
-starexpr = re.compile(r'<img src="http://udvikling.ontv.dk/imgs/stars/(full|half).gif" />')
-largetitleexpr = re.compile(r's=tvguide_search&search=([^"]*?)"\s+title=')
+def fExtras(prg, line, prefix, rest):
+    if ':' in rest:
+        return rest
+    else:
+        return line
+addPrefixFilter(ur'Medvirkende:', fExtras)
 
-def parseLarge(day, tz, data):
-    # parse information available in data if possible o.w. return None
+def fOriginalTitle(prg, line, prefix, rest):
+    prg.addTag('title_en', rest.strip('.'))
+    return ''
+addPrefixFilter(ur'Originaltite?l?e?:', fOriginalTitle)
 
-    title = largetitleexpr.search(data)    
-    if not title:
-        log("no title found.")
-        return None
-    title = urllib.unquote(title.group(1)).decode("iso-8859-1")
+def fLength(prg, line, prefix, rest):
+    'Længde: xxx min'
+    m = re.match('(\d+) [mM]in\.?', rest)
+    if m:
+        prg.addTag('length_units=minutes', m.group(1))
+        return ''
+    return line
+addPrefixFilter(ur"(?:Læn?gden?|Laufzeit):", fLength)
 
-    start = data.rfind('<div class="content"')
-    end = data.find('class="titles">Brugernes mening',start)
-    if end < 0: end = data.find("<iframe",start)
-    data = data[start:end].decode("iso-8859-1")
-    data = ampexpr.sub("&amp;",data)
+def fWWW(prg, line, prefix, rest):
+    'www. ...'
+    if prefix:
+        url = prefix.rstrip(".").split()[-1]
+        # log('LINE: %s --> URL: %s\n' % (line, url))
+        prg.addTag('url', url)
+        return rest.strip()
+    return line
+# Mere om aftenens program på www... ???
+# Se flere nyheder på dr.dk/update
+addPrefixFilter(ur'(?:Mere om aftenens program på |Se flere nyheder på |www\.)[^ ]+', fWWW)
+
+def fPreviouslyShown(prg, line, prefix, rest):
+    # Sendt første gang 26.01.10.
+    if not re.match(ur"(?:[\d\. ]|og)+\.?$", rest):
+        log('NO DATE MATCH: %s\n' % rest)
+        return line
+
+    dates = []
+    for r in rest.split('og'):
+        parts = [p for p in re.split(ur'[ .]+', r.strip()) if p]
+        if len(parts) == 3:
+            d,m,y = parts
+        elif len(parts) == 2:
+            d,m = parts
+            y = None
+        else:
+            log('NO DATE MATCH: %s\n' % rest)
+            return line
+        d = d.zfill(2)
+        m = m.zfill(2)
+        if not y:
+            y = str(time.localtime()[0])
+            if prg['start'] < y+m+d:
+                y = str(time.localtime()[0]-1) # last year
+        try: 
+            t = '.'.join((d,m,y))
+            f = len(y) == 4 and '%Y' or '%y'
+            t = time.strftime("%Y%m%d",time.strptime(t,"%d.%m."+f))
+            dates.append(t)
+        except ValueError, msg:
+            if options.verbose:
+                # sometimes we get illegal time stamps like 31.11
+                sys.stderr.write("Unable to parse timestampe, %s: %s\n" % (t,msg))
+
+    if not dates:
+        return line
     
-    times = startendexpr.search(data)
-    if not times:
-        return None
+    for d in dates:
+        prg.addTag('previously-shown_start='+d)
+    return ''
+addPrefixFilter(ur'Sendt førs(?:te|et) gang', fPreviouslyShown)
+addFilter(10, splitByCreditPrefix, ur'Sendes også', False)
+addFilter(10, splitByCreditPrefix, ur'Nordisk samproduktion|Nordvision', False)
 
-    stars = starexpr.findall(data)
-    extra = extraexpr.findall(data)
-    info = infoexpr.search(data)
-    img = imgexpr.search(data)
+DONE = '''
+'''
+
+TODO = '''Maybe also parse somethings like
+  Dansk folkekomedie fra 1960.
+    amr. komedieserie
+    amr. dramaserie.
+    Amerikansk thriller fra 1991.
+    Engelsk krimi fra 1981.
+    Israelsk prisbelønnet autentisk krigsdrama fra 2007.
+    "Guldalderen"    (if on first line: a subtitle)
+    Sendes også
+
+Hvis : i titel og ingen sub-title, split!
+
+
+if first line is repeated as the first part of the second line
+if first line or subtitle is repeated later in (again)
+o.w. if in (...), then is probably the origial title
+first line with a dash:     - det er da ikke noget at skamme sig over! => subtitle
+
+    Emma: Claire Holt, Cleo: Phoebe Tonkin og Rikki: Cariba Heine.
+    Desuden medvirker: Lewis: Angus McLaren. Kim: Cleo Massey. Elliot: Trent Sullivan. Zane: Burgess Abernethy. Miriam: Anabelle Stephenson.
+
+
+    Manuskript: Oliver Zahle, Jens Korse & Lotte Svendsen
+    Max - Samuel Heller-Seiffert
+    Mor - Mette Horn
+    Far - Anders Nyborg
+    Esther - Anna Agafia Svideniouk Egholm
+    Steen Cold - Lars Bom
+    Hassan - Faysal Mobahriz
+    Ulla - Louise Mieritz
+
+    Stuart Little: Michael J. Fox. (stemme)
+    Snowbell: Nathan Lane. (stemme)
+    Manuskript: M. Night Shyamalan og Greg Brooker efter E.B. Whites børnebog.
+ 
+
+
+FIXIT
+'''
+
+
+
+# FIX
+
+# pass 10 & 80
+addCreditFilter("actor",       ur"Experte",      True)
+addCreditFilter("actor",       ur"Jury",        True)
+addCreditFilter("actor",       ur"Cast",        False)
+addCreditFilter("actor",       ur"With",        False)
+addCreditFilter("actor",       ur"Manuskript og medvirkende", False)
+
+addCreditFilter("adapter",     ur"Animation",   True)
+addCreditFilter("adapter",     ur"Foto(?:graf)?", True)
+addCreditFilter("adapter",     ur"Kamera", True)
+addCreditFilter("adapter",     ur"Regie", True)
+addCreditFilter("adapter",     ur"Regissör", True)
+addCreditFilter("adapter",     ur"Scenografi", True)
+addCreditFilter("adapter",     ur"Screenplay", True)
+addCreditFilter("adapter",     ur"Szenenbild", True)
+addCreditFilter("adapter",     ur"(?:Signatur|Titel)?[Mm]usik", True)
+addCreditFilter("adapter",     ur"Original Soundtrack", True)
+addCreditFilter("adapter",     ur"Lydredigering", True)
+addCreditFilter("adapter",     ur"Dansk version", True)
+addCreditFilter("adapter",     ur"Koreografi", True)
+addCreditFilter("adapter",     ur"Tilrettelæggelse", True)
+addCreditFilter("adapter",     ur"TV ?2(?: Zulu| Charlie)?[- ]*[Rr]edakl?tør(?:er)?", True)
+addCreditFilter("adapter",     ur"Moderation", True)
+
+addCreditFilter("commentator", ur"Fortæller", True)
+addCreditFilter("commentator", ur"Kommentator(?:er)?", False)
+addCreditFilter("guest",       ur"Gæst(?:er)?", False)
+addCreditFilter("presenter",   ur"Vært(?:er)?", False)
+addCreditFilter("producer",    ur"Instruktion", True)
+addCreditFilter("producer",    ur"Instruktion og tilrettelæggelse",   True)
+addCreditFilter("producer",    ur"Instruktør", True)
+addCreditFilter("producer",    ur"Directed by", False)
+addCreditFilter("producer",    ur"Producere?", False)
+addCreditFilter("producer",    ur"Produktion", False)
+addCreditFilter("producer",    ur"Programleder", True)
+addCreditFilter("producer",    ur"Distributør", True)
+
+addCreditFilter("writer",      ur"Manus(?:kript)?", False)
+addCreditFilter("writer",      ur"Manuskript og instruktion", False)
+addCreditFilter("writer",      ur"Tekst", False)
+addCreditFilter("writer",      ur"Buch", False)
+addCreditFilter("writer",      ur"Drehbuch", False)
+addCreditFilter("writer",      ur"Literarische Vorlage", False)
+
+addCreditFilter("actor",       ur"Desuden medvirker",      False)
+addCreditFilter("actor",       ur"Endvidere",      False)
+addCreditFilter("actor",       ur"Medvirkende",      False)
+addCreditFilter("actor",       ur"Medv\.",      False)
+addCreditFilter("actor",       ur"Mitwirkende",      False)
+addCreditFilter("actor",       ur"I rollene",      False)
+
+addFilter(80, extractCredit, None, "actor", True)
+
+# 100 and above also operate on the entire description
+def removeDuplicates(prg, all):
+    lines = all.split('\n')
     
-    return parseData(title, stars, extra, times, info, img, day, tz)
+    title = prg.getChild('title_da').text
+    titles = [title]
+    if ':' in title:
+        titles.extend([t.strip() for t in title.split(":") if t.strip()])
+    
+    stitle = prg.hasChild('sub-title')
+    if stitle:
+        titles.append(stitle.text)
 
-def getDayProgs (id, day):
-    data = readUrl("http://ontv.dk/?s=tvguide_kanal&guide=&type=&kanal=%s&date=%s" % (id, parseDay(day)))[1]
+    titles.extend([u'(%s)' % t for t in titles] + 
+                  [u'"%s"' % t for t in titles] + 
+                  [u'(%s).' % t for t in titles] + 
+                  [u'"%s".' % t for t in titles])
+
+    for i in range(len(lines)):
+        line = lines[i]
+        if line in titles:
+            lines[i] = u''
+
+    if len(lines) >= 2 and lines[1].startswith(lines[0]):
+        del lines[0]
+        lines[0] = lines[0].lstrip(u'.').strip()
+
+    if len(lines) >= 2:
+        for i in range(len(lines)-1,0,-1):
+            if lines[i] == lines[0]:
+                del lines[i]
+    
+    lines = filter(None, lines)
+    return '\n'.join(lines)        
+
+addFilter(110, removeDuplicates)
+
+
+# ---------- Hent Programmer for en specifik kanal og dag ---------- #
+
+def getDayProgs(cid, day):
+    data = readUrl(getDayURL(cid, day))[1]
     if not data:
         # log("[-No data available for day %s-]" % day)
         log(" :(")
-        yield []; return
+        return []
+    data = compact(data.decode("utf8"), True)
+    trs = re.findall(r'<tr.*?</tr>',data)
     
-    data = data.decode("iso-8859-1")
-    start = data.find('<tr style="background-color:#eeeeee;">')
-    end = data.find("</table>",start)
-    
-    programmes = dayexpr.findall(data, start, end)
+    programmes = []
+    realday = day
+    for tr in trs:
+        if '/programinfo/' not in tr: continue
+        prg = Programme('programme')
+        prg['channel'] = cid
+
+        # Extract time, number and name
+        mre = re.search(u'<p>(\d\d):(\d\d):</p>.*<a[^>]*programid="([0-9]+)"[^>]*>([^<]+)</a>', tr)
+        if not mre:
+            continue
+        sh,sm, pid, title = mre.groups()
+        if programmes and sh < programmes[-1].start[1]:
+            # we are actually at the next day
+            realday = day + 1
+        prg.setTime('start', [realday,int(sh),int(sm),-1])
+        prg.pid = pid
+        prg.addTag('title_da',title)
+
+        # some programmes have a category
+        mre = re.search(u'/imgs/design/epg/types/[a-z]*.gif[^>]*pType="([^"]+)"',tr)
+        if mre:
+            prg.addTag('category', mre.group(1))
+        else:
+            category = None
+
+        if programmes:
+            programmes[-1].next = prg
+        programmes.append(prg)
+
     if not programmes:
         # log("[-No data available for day %s-]" % day)
         log(" :o(")
-        yield []; return
+        return
 
     # check for summer -> winter tz at 02:00 -> 02:59
     # this is detected when program i starts "after" program i+1
     for i in range(1,len(programmes)):
-        # format: (sh, sm, info, title) = p
         pp, p = programmes[i-1:i+1]
-        if int(pp[0]) == 2 and int(p[0]) == 2 and \
-           int(pp[1]) > int(p[1]):
+        if int(pp.start[1]) == 2 and int(p.start[1]) == 2 and \
+           int(pp.start[2]) > int(p.start[2]):
             # there must have been a tz change:
-            tzDefault = lambda j, first=i: j < first
-            log("Summer/winter tz change detected\n")
+            # programmes[..i-1] is summer time, [i..] is winter time
+            log("Summer to winter tz change detected\n")
+            for j in range(len(programmes)):
+                prg = programmes[j]
+                tz = j < i and 1 or 0
+                prg.setTime('start', prg.start[:-1] + [tz])
             break
-    else:
-        tzDefault = lambda j: -1 # no tzchange detected
-    
-    last = 0
-    for i in range(len(programmes)):
-        sh, sm, info, title = programmes[i]
-        tz = tzDefault(i)
-        if int(sh) < last: day += 1
-        last = int(sh)
-
-        small = parseSmallData(sh, sm, title, day, tz)
-        cused, data = readUrl("http://ontv.dk/programinfo/%s" % info)
-        if data:
-            large = parseLarge(day, tz, data)
         
-        if cused and (not data or not large):
-            # reread data
-            # log("Could not parse cached information for program %s\n" % info)
-            log("!")
-            cused, data = readUrl("http://ontv.dk/programinfo/%s" % info, True)
-            if data:
-                large = parseLarge(day, tz, data)
-                if large:
-                    yield large
-                    continue
-            yield small
-            continue
+    # Return the list of programmes found
+    return programmes
 
-        # keys required to be the same in small and large for us to trust
-        # the cached copy
-        keys = ("titleda", "start") 
-        smk = [small[key] for key in keys]
-        lak = [large[key] for key in keys]
-        if smk != lak:
-            if not cused:
-                log("Warning: Unexpected %s != %s\n" % (str(smk),str(lak)))
-                yield large
+def extendProgram(prg, forceRead = False):
+    ''' Extend info about prg by using the special page for this particular program. This may return
+    -1 : cache was used, but was unable to parse result - please retry!
+    0  : cache was used - result may not be right
+    1  : cache was not used - no need to run this again
+    '''
+    url = getProgrammeURL(prg.pid)
+    cused, data = readUrl(url, forceRead)
+    errcode = (cused and 1) or -1
+    if not data:
+        return errcode
+    data = data.decode('utf8')
+    
+    ###########################
+
+    # find blob with interesting data
+    mpre = re.search('<td><h1>(.+?)</h1><p>', data)
+    if not mpre:
+        # nothing here!
+        return errcode
+
+    find_t = data.find('<table',mpre.end())
+    find_td = data.find('</td>', mpre.end())
+    find_p = data.find('</p>', mpre.end())
+
+    if find_t < find_td:
+        # we have the extended split-version of the page... :(
+        # to get extended
+        # find something like {'id':31263591900,'infoid':49076,'type':'movie'} in the html
+        # and use http://ontv.dk/ajax/epg/cast.php?id=31263591900&infoid=49076&type=movie
+        find_te = data.find('</table>',find_t)
+        find_td = data.find('</td>', find_te)
+        blob = data[mpre.end():find_t] + data[find_te+8:find_td]
+    else:
+        # we have the simple version of the page :)
+        blob = data[mpre.end():find_td]
+
+    if '<h3' in blob:
+        # if available, this is the subtitle / or 'Om dette afsnit')
+        m = re.compile('<h3.*?>(.*?)</h3>')
+        sub = m.search(blob)
+        if sub:
+            # remove the first h3
+            blob = m.sub('', blob, 1)
+            sub = sub.group(1)
+            # ignore 'Om dette afsnit' etc
+            if sub.lower().startswith('om dette'):
+                pass
             else:
-                # cache is maybe not new enough - force a reread
-                # log("Flushing cached copy, since %s != %s\n" % (str(smk),str(lak)))
-                log("!")
-                cu_data = readUrl("http://ontv.dk/programinfo/%s" % info, True)
-                if not cu_data or not cu_data[1]:
-                    log("\nTimeout for program %s\n" % info)
-                    yield small
+                prg.addTag('sub-title_da',sub)
+
+    
+    blobs = slightlystripped(blob).split('\n')
+
+    if blobs:
+        # The first line is always something along the line of 
+        # 'I morgen kl. 20.00 - 21.00 på DR1'
+        # 'torsdag 21.01.2010 kl. 22.30 - 23:00 på DR2'
+        if ' kl. ' in blobs[0]:
+            m = re.search(r' kl. (\d?\d)[.:](\d\d) *- *(\d?\d)[.:](\d\d)', blobs[0])
+            if m:
+                sh,sm, eh, em = map(int, m.groups())
+
+                prg.setTime('start', [prg.start[0], sh, sm, prg.start[-1]])
+
+                day = sh <= eh and prg.start[0] or (prg.start[0]+1)
+                if eh == 2 and prg.next:
+                    tz = prg.next.start[-1]
                 else:
-                    large = parseLarge(day, tz, cu_data[1])
-                    if large:
-                        yield large
-                    else:
-                        yield small
-        else:
-            yield large
-
-ampexpr = re.compile(r"&(?![\w#]+;)")
-brexpr = re.compile(r"<\s*br\s*/\s*>", re.IGNORECASE)
-def fixText (text):
-    text = text.replace("<strong>","")
-    text = text.replace("</strong>","\n")
-    text = ampexpr.sub("&amp;",text)
-    text = brexpr.sub("",text).strip()
-    if text.endswith("."): text = text[:-1]
-    return text
-
-def parseData (title, stars, extras, times, info, img, day, tz):
-    dic = {}
+                    tz = -1
+                prg.setTime('stop', [day, eh, em, tz])
+                del blobs[0]
     
-    parseTitle(fixText(title), dic)
-    if info: parseInfo(info.groups()[0], dic)
-    if extras: parseExtras(extras, dic)
-    if stars: parseStars(stars, dic)
-    if img: dic["icon"] = img.groups()[0]
-    
-    sh, sm, eh, em = map(int, times.groups())
-    day = int(day)
-    st = jumptime(day, sh, sm)
-    tt = jumptime(day, eh, em)
-    sz = ez = tz
-    if (eh,em) < (sh,sm):
-        if eh == sh == 2:
-            # we are going from summer to winter time during this program
-            sz,ez = True, False
-        else:
-            # we are simply passing midnight
-            tt = jumptime(day+1,eh,em)
+    if blobs:
+        addAllMetaData(prg, "\n".join(blobs))
 
-    dic["start"] = ts2string(st, sz)
-    dic["stop"] = ts2string(tt, ez)
-    
-    return dic
+    return 1
 
-def parseSmallData (sh, sm, title, day, tz):
-    dic = {}
-    parseTitle(fixText(title), dic)
-    dic["start"] = ts2string(jumptime(int(day), int(sh), int(sm)), tz)
-    return dic
+def getAll(cid, day):
+    '''Get all programmes for channel cid on the particular day 
+    '''
 
-def parseFormatInfo(line, dic):
-    """Parse information about how the broadcast is shown, etc."""
-    tags = [
-        ("16:9", "format", "16:9"),
-        ("breitbild", "format", "16:9"),
-        ("vises i bredformat", "format", "16:9"),
-        ("surround", "surround", True),
-        ("dolby", "surround", True),
-        ("((s))", "surround", True),
-        ("stereo", "stereo", True),
-        ("zweikanalton", "stereo", True),
-        ("(s)", "stereo", True),
-        ("utxt", "utxt", True),
-        ("(ttv)", "utxt", True),
-        ("(t)", "utxt", True),
-        ("ttv", "utxt", True),
-        ("videotext", "utxt", True),
-        ("(g)", None, "(G) is not used"),
-        ("(fortsat)", None, None),
-        (u"uegnet for børn", None, None),
-        (u"uegnet for mindre børn", None, None),
-        (u"programkoder:", None, None),
-        (u"programkolder:", None, None),
-        # Vedr. (G): dic["shown"] tags ikke i brug, selv om DTDen
-        # tillader <previously-shown/> uden start="..." attribute.
-        # Den tages ikke i brug, da mergeren ikke kan overskrive den
-        # fra en anden fil med start="..." attribute.
-        ]
-    tags += [("(%s)" % t[0],t[1],t[2]) for t in tags]
-    while line:
-        line = line.strip().strip(".").strip(",")
-        linel = line.lower()
-        for (tag, key, value) in tags:
-            if linel.startswith(tag):
-                if key is not None:
-                    dic[key] = value
-                line = line[len(tag):]
-                break
-            if linel.endswith(tag):
-                if key is not None:
-                    dic[key] = value
-                line = line[:-len(tag)]
-                break
-        else:
-            break
-    return line
-
-maxStars = 10
-def parseStars (stars, dic):
-    noStars = 0
-    for star in stars:
-        if star == "full": noStars += 2
-        elif star == "half": noStars += 1
-    if noStars > maxStars:
-        log(str(dic)+" \t"+str(stars))
-    dic["stars"] = str(noStars)
-
-titleexpr = re.compile(r'^(.*?)(?:\s+(med\s+.*?))?(?:\s*\(\s*(\d+)*\s*:?\s*(\d+)*\s*\)\s*[-:]?\s*(.*?))?(?:\s+-\s*(.*?))?(?::\s*(.*?))?(?:\s*\(\s*(\d+)*\s*:?\s*(\d+)*\s*\))?$')
-def parseTitle (title, dic):
-    """Udgave med support for title, med subtitle, (episode:antal), :subtitle, - subtitle, :subtitle og (episode:antal) """
-    orgtitle = title
-    
-    title = parseFormatInfo(title, dic)
-    if title.startswith("Fredagsfilm:"):
-        title = title[12:].strip()
-    
-    m = titleexpr.match(title)
-    if m == None:
-        dic["titleda"] = title
-        log(u"Could not parse the title \"%s\"\n" % title)
+    programmes = getDayProgs(cid, day)
+    if not programmes:
+        log(' :( ')
         return
-        
-    title, sub, ep, af, sub1, sub2, sub3, ep1, af1 = m.groups()
-    dic["titleda"] = title
-    
-    for s in (sub, sub1, sub2, sub3):
-        if s:
-            s = parseFormatInfo(s, dic)
-        if s:
-            dic["sub-titleda"] = s
-            break
 
-    if ep == ep1 == None: return
-    elif ep == None and ep1 != None:
-        ep = ep1; af = af1
-    if af == None: af = ""
-    else: af = "/"+af
-    dic["episode"] = ".%s%s." % (str(ep),str(af))
+    for prg in programmes:
+        oprg = copy.deepcopy(prg)
 
-simptitleexpr = re.compile(r'^(.*?)(?:\s+-\s*(.*?))?(?::\s*(.*?))?$')
-def simpleParseTitle (title, dic):
-    """Udgave med support for title, -subtitle og :subtitle"""
-    orgtitle = title
-    
-    m = simptitleexpr.match(title)
-    if m == None:
-        dic["title"] = title
-        log(u"Could not 'simple'parse the title \"%s\"\n" % title)
-        return
-        
-    title, sub, sub1 = m.groups()
-    dic["title"] = parseFormatInfo(title, dic)
-    
-    for s in (sub, sub1):
-        if s:
-            s = parseFormatInfo(s, dic)
-        if s:
-            dic["sub-title"] = s
-            break
-
-linkexpr = re.compile(r'\s*<a(?:.*?)>\s*(.*?)\s*</a>\s*')
-def splitPersons (persons):
-    persons = linkexpr.sub(r'\1 ', persons)
-    if "," in persons:
-        persons = persons.split(", ")
-    else:
-        persons = re.split(ur"(?<![A-ZÆØÅ])\. ", persons)
-    for a in [" og ", " &amp; "]:
-        persons[-1:] = persons[-1].split(a)
-    return [p.strip() for p in persons]
-
-def couldBePerson (person):
-    if len(person) < 2: return False
-    uniletters = "".join([unichr(i) for i in range(192,564)])
-    ok = string.letters+" .'-&:\"()/"+uniletters
-    for char in person:
-        if not char in ok:
-            return False
-    if person.count(" ") >= 6:
-        return False
-    return True
-
-def couldBePersons(persons):
-    return False not in map(couldBePerson, splitPersons(persons))
-        
-def put (key, value, dic):
-    if key in dic:
-        dic[key] += value
-    else: dic[key] = value
-
-creditsPrefix = {
-    # hashtabel med
-    # regulært udtryk der kan antages at være i starten af en linje
-    # -> persontype, der skal i <credits>...
-    # evt -> None hvis det ikke svarer til en person
-    # Husk store/små bogstaver og KOLON (:)
-    # Kolon er vigtigt for at undgå at vi klipper noget ud i den 
-    # almindelige udsendelsesbeskrivelse.
-    #
-    ur"Gæst(?:er):":           "guest",
-    ur"Vært(?:er):":           "host",
-    ur"Experte:":              "expert",
-    ur"Jury:":                 "judge",
-    ur"Fortæller:":            "narrator",
-    #
-    ur"Animation:":            "adapter",
-    ur"Foto:":                 "adapter",
-    ur"Fotograf:":             "adapter",
-    ur"Kamera:":               "adapter",
-    ur"Regie:":                "adapter",
-    ur"Scenografi:":           "adapter",
-    ur"Szenenbild:":           "adapter",
-    ur"Signaturmusik:":        "adapter",
-    ur"Lydredigering:":        "adapter",
-    ur"Dansk version:":        "adapter",
-    ur"Koreografi:":           "choreography",
-    #
-    ur"Instruktion:":          "director",
-    ur"Instruktør:":           "director",
-    #
-    ur"Kommentator(?:er)?:":   "commentator", 
-    #
-    ur"Manuskript:":           "writer",
-    ur"Tekst:":                "writer",
-    ur"Buch:":                 "writer",
-    ur"Drehbuch:":             "writer",
-    ur"Literarische Vorlage:": "writer",
-    #
-    ur"Musik:":                "music",
-    ur"Titelmusik:":           "music",
-    #
-    ur"Producer:":             "producer", 
-    ur"Produktion:":           "producer", 
-    ur"Programleder:":         "producer",
-    #
-    ur"Tilrettelæggelse:":     "editor",
-    ur"TV 2(?: Zulu)?[- ]*[Rr]edakl?tør(?:er)?:": "editor",
-    ur"Moderation:":           "editor",
-    ur"Distributør:":          "distributor"
-    }
-
-actorListPrefix = {
-    ur"Desuden medvirker:":    "actor",
-    ur"Endvidere:":            "actor",
-    ur"Medvirkende:":          "actor",
-    ur"Medv\.:":               "actor",
-    ur"Mitwirkende:":          "actor",
-    ur"I rollene:":            "actor",
-    }
-actorListPrefixExpr = re.compile(r"^((?:%s))\s*(.*)" % "|".join(actorListPrefix.keys()))
-
-creditsPrefix.update(actorListPrefix)
-
-superSplit = {
-    ur"\(Vom [\d\. ]+\)" : None,
-    ur"\(Erstsendung [\d\. ]+\)" : None,
-    ur"Sendt førs(?:te|et) gang (?:[\d\. ]|og)+\.?": None,
-    ur"Sendes også (?:[\d\. ]|og)+\.?": None,
-    ur"(?:Længde|Laufzeit):\s*\d+ [mM]in\.?,": None,
-}
-superSplitableExpr = re.compile(r"(%s)" % "|".join(superSplit.keys()))
-
-EPISODE_NUMBER = ur'(?:Fortløbende|Originalt?) episode(?:nr\.?|nummer)[\.:]'
-
-ORG_TITLE = ur"Original ?titel(?: \(dok\.\))?:"
-ORG_SUBTITLE = ur"Original episodetitel:"
-SUBTITLE = ur"Episodetittel:"
-PRG_LENGTH = ur"(?:Længde|Laufzeit|Sendelänge):"
-
-otherPrefix = {
-    ORG_TITLE : None,
-    ORG_SUBTITLE : None,
-    SUBTITLE: None,
-    #
-    ur"Programkoder:" : None,
-    ur"Aldersgrense:": None,
-    ur"(?:\(Vom |XXXXXXX)": None, # Sendt første gang
-    ur"(?<!\()Sendes også" : None,
-    PRG_LENGTH : None,
-    # ur"\(Sendes også" : None,
-    EPISODE_NUMBER : None,
-    ur"\(Erstsendung ": None,
-    ur"\(Zweikanalton:": None,
-    }
-
-splitable = dict()
-splitable.update(creditsPrefix)
-splitable.update(actorListPrefix)
-splitable.update(otherPrefix)
-splitableexpr = re.compile(r"^(.+?)((?:%s).*)" % "|".join(splitable.keys()))
-
-def splitLine(line):
-    """splitLine(line) -> [lines]
-Possibly split line into multiple lines according to the keys in the
-splitable expression"""
-    line = [line]
-    while True:
-        m = splitableexpr.match(line[-1])
-        if not m:
-            break
-        line[-1:] = list(map(lambda x: x.strip(), m.groups()))
-    return line
-
-def isWrappedBy(line, wr):
-    if line.startswith(wr[0]) and line.endswith(wr[1]):
-        return line[len(wr[0]):-len(wr[1])]
-    else:
-        return None
-
-creditsDic = dict([(k.rstrip(":").lower(),v) for (k,v) in splitable.items() if v])
-
-dateexpr = re.compile(r' fra (\d\d\d\d)')
-monthdic = { "januar":"1", "jan":"1", "februar":"2", "feb":"2", "marts":"3", "mar":"3", "april":"4", "apr":"4", "maj":"5", "juni":"6", "jun":"6", "juli":"7", "jul":"7", "august":"8", "aug":"8", "september":"9", "sep":"9", "oktober":"10", "okt":"10", "november":"11", "nov":"11", "december":"12", "dec":"12" }
-timeexpr = re.compile("\d+|"+"|".join(monthdic.keys()))
-infosubtitle = re.compile("^<strong>([^<]{15,})</strong><br/>(.*)", re.DOTALL)
-
-def parseInfo (info, dic):
-    if not "sub-title" in dic:
-        # check for subtitle in the beginning (written in bold text)
-        m = infosubtitle.match(info)
-        if m:
-            dic["sub-titleda"] = m.group(1)
-            info = m.group(2)
-    info = fixText(info)
-    
-    for key in ["title", "titleda", "sub-title", "sub-titleda"]:
-        # Strip titles occuring twice
-        if key in dic and info.startswith(dic[key]):
-            info = info[len(dic[key]):].strip()
-
-    info = superSplitableExpr.sub(r"\n\1\n", info)
-
-    # normalize contents
-    info = re.sub("[\t ]+", " ", info)
-    info = re.sub(" ?[\n\r]+ ?", "\n", info)
-    isGood = lambda c: (ord(c) >= ord(" ") or c == "\n")
-    info = "".join([c for c in info if isGood(c)])
-    info = re.sub(r'(:|,|og)\s*\n', r'\1 ', info)
-    info = re.sub(r'\n(:|,|og)', r' \1', info)
-
-    result = []
-
-    lines = [l.strip() for l in info.splitlines() if l.strip()]
-    
-    # split when necessary
-    i = 0
-    while i < len(lines):
-        line = splitLine(lines[i])
-        if len(line) != 1:
-            lines[i:i+1] = line
-        i+= 1
-
-    for i in range(len(lines)-1,-1,-1):
-        line = lines[i]
-        m = actorListPrefixExpr.match(line)
-        if m and not m.group(2):
-            del lines[i]
-            if i < len(lines):
-                lines[i] = line + " " + lines[i]
-        
-    
-    for i in range(len(lines)):
-        line = lines[i]
-        line = parseFormatInfo(line, dic)
-        
-        # Lines that we want to ignore completely / delete
-        for r in [
-            ur"Aldersgrense: \d+ [åÅ]r\.?",
-            PRG_LENGTH + ur"? *\d+ [mM]in(?:uten)?\.?",
-            ur"ca\. \d\d\.\d\d Uhr: Werbung",
-            ur":6\)",
-            ]:
-            m = re.match("^(%s)(.*)"%r, line)
-            if m:
-                line = m.group(2).strip().strip(".")
-
-        if not line or len(line) < 2: continue
-
-
-        m = re.match(ur"^%s *\((\d+)(:\d+)?\)\.*$" % EPISODE_NUMBER, line)
-        if m:
-            if "episode" not in dic:
-                try:
-                    m0 = int(m.group(1))-1
-                    if m.group(2):
-                        m1 = int(m.group(2)[1:])
-                        dic["episode"] = ".%d/%d." % (m0,m1)
-                    else:
-                        dic["episode"] = ".%d." % m0
-                except ValueError:
-                    sys.stderr.write(repr(line) + " --> VALUEERROR")
-                    pass
+        r = extendProgram(prg, False)
+        if r == 1:
+            # no need to try further
+            yield prg
             continue
         
-        for (r, key) in [
-            (ORG_TITLE, 'title'),
-            (ORG_SUBTITLE, 'subtitle'),
-            (SUBTITLE, 'titleda')]:
-            m = re.match(ur"^%s *(.*?)\.*$" % r, line)
-            if m:
-                # we have a match
-                tmp = m.group(1).strip('"')
-                for other in dic.items():
-                    if tmp == other:
-                        # this title was already found somewhere else
-                        break
-                else:
-                    if key not in dic:
-                        dic[key] = tmp
-                line = None
-                break
-        if not line:
-            continue
-
-        if (line[0] == "(" and (line[-1] == ")" or line.endswith(")."))) and \
-                not line.startswith("(Vom"):
-            simpleParseTitle(line[1:-1], dic)
-            continue
-        if not "sub-title" in dic:
-            m = [isWrappedBy(line, pair) for pair in ['""', ("- ",".")] if isWrappedBy(line, pair)]
-            if m:
-                dic["sub-title"] = m[0]
-                continue
-
-        m = re.match(ur"^(\(?Sendt førs[te]* gang|\(?Vom|\(?Erstsendung) *(.*)", line)
-        if m:
-            t = m.group(2)
-            parts = timeexpr.findall(t)
-            if len(parts) == 4:
-                # Sometimes "Sendt første gang" and "Sendes også..."
-                # are on the same line.
-                d, m, _, _ = parts
-                y = time.strftime("%y")
-            elif len(parts) == 3:
-                d, m, y = parts
-            elif len(parts) == 2:
-                d, m = parts
-                y = time.strftime("%y")
-            elif len(parts) == 1:
-                d = "1"
-                m = "1"
-                y, = parts
+        # cache was used, but program info may have changed
+        if r == 0:
+            okey = oprg['start'], oprg['title']
+            key  = prg['start'], prog['title']
+            if okey != key:
+                # something is wrong we have to try again
+                log("Flushing cached copy, since %s != %s\n" % (str(okey),str(key)))
+                pass
             else:
-                # Ignorér ikke-genkendt tidsstempel
+                # no need to try again
+                yield prg
                 continue
-            if not m.isdigit():
-                m = monthdic[m]
-            ot = t
-            t = ".".join(s[-2:].zfill(2) for s in (d, m, y))
-            try: 
-                t = addTimeZone(time.strftime("%Y%m%d",time.strptime(t,"%d.%m.%y")))
-                dic["shown"] = t
-            except ValueError, msg:
-                if options.verbose:
-                    # sometimes we get illegal time stamps like 31.11
-                    sys.stderr.write("Unable to parse timestampe, %s: %s\n" % (ot,msg))
-            continue
-        
-        # Del der fixer linjer som
-        # Amerikansk komedie fra 1996.
-        # Amerikansk drama fra 1996 med Woody Harrelson.
-        # Dansk romantisk dramaserie fra 2002.
-        # Dramadokumentarserie fra BBC fra 2005.
-        linetmp = line.strip(" -.")
-        m = dateexpr.search(linetmp) #' fra (\d\d\d\d)'
-        if m != None and re.match(u"^[A-ZÆØÅ]", linetmp):
-            dic["date"] = m.group(1)
-            start, end = m.span()
-            dele = linetmp[:start].split(" ")
-            if "fra" in dele:
-                dele = dele[:dele.index("fra")]
-            while len(dele) > 2:
-                del dele[1]
-            if len(dele) == 2:
-                dic["country"] = dele[0]
-                dic["categoryda"] = dele[1]
-            elif len(dele) == 1:
-                dic["categoryda"] = dele[0]
-        
-        # Del der fixer linjer som
-        # Medvirkende:
-        # Nikolaj: Peter Mygind.
-        # Endvidere medvirker:
-        # Birgitte Simonsen, Ole Thestrup,
-        # Signaturmusik:Tim Christensen.
-        # Danske kommentatorer: Mads Vangsø og Adam Duvå Hall.
-
-        # test whether we have an "actor-prefix" + actors with actor:part-names
-        matchFound = False
-        while True:
-            m = actorListPrefixExpr.match(line)
-            if m and ":" in m.group(2):
-                line = m.group(2).strip().strip(".")
-            else:
-                break
-
-        if ":" not in line:
-            result.append(line)
-            continue
-        
-        # see whether we can find a known credits prefix
-        for (reg,type) in creditsPrefix.items():
-            m = re.match(u"^(%s)(.*)"% reg, line)
-            if m:
-                persons = m.group(2).strip(".")
-                put(type, splitPersons(persons), dic)
-                break
         else:
-            # no known prefix found
-            if couldBePersons(line):
-                line = line.strip(".")
-                put("actor", splitPersons(line), dic)
-            else:
-                if len(line) < 100 \
-                        and not re.match("^\d\d:\d\d ", line) \
-                        and not line.startswith("I dag: "):
-                    # log("IGNORING SPECIAL ':'LINE: %s\n" % line)
-                    log(".")
-                result.append(line)
+            # could not parse file, try again
+            pass
 
-    if result:
-        put ("descda", "\n".join(result), dic)
+        # try again
+        log('!')
+        r = extendProgram(oprg, True)
+        yield oprg
 
-episodeexpr = re.compile("(\d+)\s*(?:av|af|:|/)?\s*(\d+)?")
-def parseExtras (extras, dic):
-    for key, value in [(k.lower(),fixText(v)) for k,v in extras]:
-        if key == 'medvirkende':
-            put("actor", splitPersons(value), dic)
-        elif key == 'genre':
-             dic["categoryda"] = value
-        elif key == 'type' and not "categoryda" in dic:
-            dic["categoryda"] = value
-        elif key == 'fra':
-            year_country = value.split(None,1)
-            for item in year_country:
-                if item[:4].isdigit():
-                    dic["date"] = item[:4]
-                else:
-                    dic["country"] = item
-        elif key == "episode":
-            m = episodeexpr.search(value)
-            if m:
-                ep, af = m.groups()
-                try:
-                    ep = str(int(ep)-1)
-                    if af:
-                        dic["episode"] = ".%s/%s." % (ep, af)
-                    else:
-                        dic["episode"] = ".%s." % ep
-                except ValueError:
-                    continue
-
-def getChannelIcon (url):
-    d = readUrl(url)
-    if not d: return None
-    _, page = d
-    s = len("<img src=\"")
-    e = page.find("\"", s)
-    return page[s:e]
+def getChannelIcon(cid):
+    '''Returns URL of channel logo'''
+    url = getDayURL(cid, 2)
+    data = readUrl(url)[1]
+    if data: 
+        data = data.decode("utf-8")
+        icons = re.findall('http://ontv.dk/imgs/epg/logos/[^\'"]+', data)
+        if icons: 
+            return icons[0]
+    return None
 
 # ---------- Spørg til konfigurationsfil ---------- #
 
 if options.configure:
     # ensure that we can do Danish characters
-    sys.stdout = codecs.getwriter(locale.getpreferredencoding())(sys.stdout)
+    sys.stdout = codecs.getwriter(getNiceEncoding())(sys.stdout)
     folder = os.path.dirname(options.configfile)
     print u"The configuration will be saved in '%s'." % options.configfile
     if not os.path.isdir(folder):
@@ -1161,13 +1433,14 @@ if options.configure:
     for id, name in parseChannels():
         nameascii = name.encode("ascii","replace")
         answer = raw_input(u"Add channel %s (y/N) " % nameascii).strip()
+        print id
         if answer == "y":
-            lines.append(u"channel %d %s\n" % (id, name))
+            lines.append(u"channel %s %s\n" % (id, name))
         else:
-            lines.append(u"# channel %d %s\n" % (id, name))
+            lines.append(u"# channel %s %s\n" % (id, name))
     codecs.open(options.configfile, "w", "utf8").writelines(lines)
     sys.exit()
-    
+
 # ---------- Skift output, hvis ønsket ---------- #
 
 # ALSO after this point we only output XML - ensure that we can do
@@ -1184,77 +1457,43 @@ else:
     # when doing redirects, i.e., tv_grab_dk_ontv ... > filename)
     sys.stdout = codecs.getwriter('UTF-8')(sys.stdout)
 
-# ---------- Lav --list-channels ---------- #
-
-if options.listchannels:
-    channelList = parseChannels()
-    print u'<?xml version="1.0" encoding="UTF-8"?>'
-    print u"<!DOCTYPE tv SYSTEM 'xmltv.dtd'>"
-    print u"<tv generator-info-name=\"XMLTV\" generator-info-url=\"http://membled.com/work/apps/xmltv/\">"
-    
-    for id, channel in channelList:
-        print u"<channel id=\"%s\">" % id 
-        print u"    <display-name>%s</display-name>" % fixText(channel)
-        iconurl = getChannelIcon("http://ontv.dk/extern/widget/kanalLogo.php?id=%s" % id)
+def outputChannels(channels):
+    '''Given a list of (channelId, description) output info abouts channels'''
+    for cid, channel in channels:
+        print u"<channel id=\"%s\">" % cid 
+        print u"    <display-name>%s</display-name>" % escape(channel)
+        iconurl = getChannelIcon(cid)
         if iconurl:
             print "    <icon src=\"%s\"/>" % iconurl
         print "</channel>"
+
+def outputXMLprefix():
+    print u'<?xml version="1.0" encoding="UTF-8"?>'
+    print u"<!DOCTYPE tv SYSTEM 'xmltv.dtd'>"
+    print u"<tv generator-info-name=\"XMLTV\" generator-info-url=\"http://membled.com/work/apps/xmltv/\">"
+
+def outputXMLpostfix():
     print u"</tv>"
+    
+if options.listchannels:
+    outputXMLprefix()
+    outputChannels(parseChannels())
+    outputXMLpostfix()
     sys.exit(0)
 
-# ---------- Parse ---------- #
+log(sys.argv[0]+ '\n' + VERSION + '\n\n')
+log("Generating list of channels: \n")
+outputXMLprefix()
+outputChannels(chosenChannels)
 
-keyDic = {"titleda":"<title lang=\"da\">", "sub-titleda":"<sub-title lang=\"da\">", "title":"<title>", "sub-title":"<sub-title>", "categoryda":"<category lang=\"da\">", "descda":"<desc lang=\"da\">", "episode":"<episode-num system=\"xmltv_ns\">", "format":"<video><aspect>", "date":"<date>", "country":"<country>", "stars":"<star-rating><value>", "shown":"<previously-shown start=\"", "icon":"<icon src=\""}
-
-endDic = {"titleda":"</title>", "sub-titleda":"</sub-title>", "title":"</title>", "sub-title":"</sub-title>", "categoryda":"</category>", "descda":"</desc>", "episode":"</episode-num>", "format":"</aspect></video>", "date":"</date>", "country":"</country>", "stars":"/%d</value></star-rating>" % maxStars, "shown":"\" />", "icon":"\" />"}
-
-oneDic = {"utxt":"<subtitles type=\"teletext\" />",
-          "surround": "<audio><stereo>surround</stereo></audio>",
-          "stereo": "<audio><stereo>stereo</stereo></audio>",
-          }
-
-credits = tuple(set(creditsPrefix.values()))
-
-log("Parsing data: \n")
-print u"<?xml version=\"1.0\" ?><!DOCTYPE tv SYSTEM 'xmltv.dtd'>"
-print u"<tv generator-info-name=\"XMLTV\" generator-info-url=\"http://membled.com/work/apps/xmltv/\">"
-
-for id, channel in chosenChannels:
-    print "<channel id=\"%s\">" % id
-    print "    <display-name>%s</display-name>" % fixText(channel)
-    iconurl = getChannelIcon("http://ontv.dk/extern/widget/kanalLogo.php?id=%s" % id)
-    if iconurl: print "    <icon src=\"%s\"/>" % iconurl
-    print "</channel>"
-
-for id, channel in chosenChannels:
+for cid, channel in chosenChannels:
     log("\n%s:"%channel)
 
     for day in range(options.offset, min(options.offset+options.days,maxdays)):
         log(" %d" % day)
-        for programme in getDayProgs(id, day):
-            if not programme: continue
-            print u"<programme channel=\"%s\" start=\"%s\"" % (id, programme["start"]),
-            if "stop" in programme: print u" stop=\"%s\">" % programme["stop"]
-            else: print ">"
+        for programme in getAll(cid, day):
+            print unicode(programme)
     
-            for key, value in keyDic.iteritems():
-                if programme.has_key(key):
-                    print u"%s%s%s" % (keyDic[key], programme[key], endDic[key])
-        
-            if len([c for c in credits if c in programme]) > 0:
-                print u"<credits>"
-                for c in credits:
-                    if programme.has_key(c):
-                        for credit in programme[c]:
-                            print u"<%s>%s</%s>" % (c,credit,c)
-                print u"</credits>"
-
-            for k, v in oneDic.iteritems():
-                if k in programme:
-                    print u"%s" % v.decode("utf8")
-
-            print u"</programme>"
-    
-print u"</tv>"
+outputXMLpostfix()
 
 log(u"\nDone.\n")
