@@ -841,6 +841,7 @@ addFilter(P, endsOrStartsWith, ur'Stereo', ur'audio:stereo!stereo')
 addFilter(P, endsOrStartsWith, ur'Zweikanalton', ur'audio:stereo!stereo')
 
 addFilter(P, endsOrStartsWith, ur'\(TTV\)', ur'subtitles_type=teletext')
+addFilter(P, endsOrStartsWith, ur'UTXT', ur'subtitles_type=teletext')
 addFilter(P, endsOrStartsWith, ur'Videotext', ur'subtitles_type=teletext')
 
 addFilter(P, endsOrStartsWith, ur'[\("][Uu]egnet for (?:mindre )?børn[\)"]\.?', ur'rating_system=DK!\1')
