@@ -1,0 +1,478 @@
+#!/usr/bin/perl -w
+
+eval 'exec /usr/bin/perl -w -S $0 ${1+"$@"}'
+    if 0; # not running under some shell
+
+=pod
+
+=head1 NAME
+
+tv_grab_dk_ontvpro - Grab TV listings for Denmark (requires as OnTV Pro subscription).
+
+=head1 SYNOPSIS
+
+tv_grab_dk_ontvpro --help
+
+tv_grab_dk_ontvpro --configure [--config-file FILE] [--gui OPTION]
+
+tv_grab_dk_ontvpro [--config-file FILE] 
+                   [--days N] [--offset N]
+                   [--output FILE] [--quiet] [--debug]
+
+tv_grab_dk_ontvpro --list-channels [--config-file FILE]
+                   [--output FILE] [--quiet] [--debug]
+                 
+                
+=head1 DESCRIPTION
+
+Output TV and listings in XMLTV format for many stations
+available in Demark (as well as Norway and Sweden). 
+
+Using this grabber requires that you have signed up for an
+OnTV Pro subscription (http://ontv.dl/xmltv), which allows
+you to retrieve a raw XMLTV listing through your own,
+private URL.
+
+First you must run B<tv_grab_dk_ontvpro --configure> to specify
+your private XMLTV URL, and choose which stations you want to receive.
+
+Then running B<tv_grab_dk_ontvpro> with no arguments will get a listings for
+the stations you chose for five days including today.
+
+Because OnTV only allows one download per day, the grabber caches
+the downloaded XMLTV for 24 hours. The cache is located in .xmltv/cache
+in your home directory.
+
+=head1 OPTIONS
+
+B<--configure> Prompt for which stations to download and write the
+configuration file.
+
+B<--config-file FILE> Set the name of the configuration file, the
+default is B<~/.xmltv/tv_grab_dk_ontvpro.conf>.  This is the file written by
+B<--configure> and read when grabbing.
+
+B<--gui OPTION> Use this option to enable a graphical interface to be used.
+OPTION may be 'Tk', or left blank for the best available choice.
+Additional allowed values of OPTION are 'Term' for normal terminal output
+(default) and 'TermNoProgressBar' to disable the use of Term::ProgressBar.
+
+B<--output FILE> When grabbing, write output to FILE rather than
+standard output.
+
+B<--days N> When grabbing, grab N days rather than 5.
+
+B<--offset N> Start grabbing at today + N days.  N may be negative.
+
+B<--quiet> Suppress the progress-bar normally shown on standard error.
+
+B<--debug> Provide more information on progress to stderr to help in
+debugging.
+
+B<--list-channels>    Output a list of all channels that data is available
+                      for. The list is in xmltv-format.
+
+B<--version> Show the version of the grabber.
+
+B<--help> Print a help message and exit.
+
+=head1 ERROR HANDLING
+
+If the grabber fails to download data for some channel on a specific day, 
+it will print an errormessage to STDERR and then continue with the other
+channels and days. The grabber will exit with a status code of 1 to indicate 
+that the data is incomplete. 
+
+=head1 ENVIRONMENT VARIABLES
+
+The environment variable HOME can be set to change where configuration
+files are stored. All configuration is stored in $HOME/.xmltv/. On Windows,
+it might be necessary to set HOME to a path without spaces in it.
+
+=head1 SUPPORTED CHANNELS
+
+For information on supported channels, see http://ontv.dk/
+
+=head1 AUTHOR
+
+Thomas Schaumburg, thomas -dot- schaumburg -at- hiq -dot- dk.
+
+Both code and documentation borrows very heavily from tv_grab_se_swedb, 
+by Mattias Holmlund
+
+=head1 BUGS
+
+=cut
+
+use strict;
+use Encode;
+use XMLTV;
+use XMLTV::ProgressBar;
+use XMLTV::Options qw/ParseOptions/;
+use XMLTV::Configure::Writer;
+
+use XML::LibXML;
+use Date::Manip;
+use Compress::Zlib;
+use File::Path;
+use File::Basename;
+use LWP::Simple qw($ua get);
+
+$ua->agent("xmltv/$XMLTV::VERSION");
+
+use HTTP::Cache::Transparent;
+
+# Although we use HTTP::Cache::Transparent, this undocumented --cache
+# option for debugging is still useful since it will _always_ use a
+# cached copy of a page, without contacting the server at all.
+#
+use XMLTV::Memoize; XMLTV::Memoize::check_argv('get');
+
+sub t;
+
+my $default_root_url = 'http://ontv.dk/xmltv/abababab14fed44352563578935006af';
+my $default_cachedir = get_default_cachedir();
+
+my( $opt, $conf ) = ParseOptions( { 
+    grabber_name => "tv_grab_dk_ontvpro",
+    capabilities => [qw/baseline manualconfig tkconfig apiconfig cache preferredmethod/],
+    stage_sub => \&config_stage,
+    listchannels_sub => \&list_channels,
+    load_old_config_sub => \&load_old_config,
+    version => '$Id:  Exp $',
+    description => "Denmark (ontv.dk - requires OnTV Pro subscription)",
+    preferredmethod => "allatonce",
+} );
+
+if (not defined( $conf->{cachedir} )) {
+    print STDERR "No cachedir defined in configfile " . 
+                 $opt->{'config-file'} . "\n" .
+                 "Please run the grabber with --configure.\n";
+    exit 1;
+}
+
+if (not defined( $conf->{'root-url'} )) {
+    print STDERR "No root-url defined in configfile " .
+                 $opt->{'config-file'} . "\n" .
+                 "Please run the grabber with --configure.\n";
+    exit 1;
+}
+
+if (not defined( $conf->{'channel'} )) {
+    print STDERR "No channels selected in configfile " .
+                 $opt->{'config-file'} . "\n" .
+                 "Please run the grabber with --configure.\n";
+    exit 1;
+}
+
+my $warnings = 0;
+
+#
+# Init the HTTP caching:
+#
+	init_cachedir( $conf->{cachedir}->[0] );
+	HTTP::Cache::Transparent::init( { 
+		BasePath => $conf->{cachedir}->[0],
+		NoUpdate => 24*60*60,
+		Verbose => $opt->{debug},
+		} );
+
+if (defined($opt->{days}) or defined($opt->{offset}))
+{
+	write_listings_by_days();
+}
+else
+{
+	my $xmldata = get( $conf->{'root-url'}->[0] )
+        	or return 0;
+	#binmode(STDOUT, ":utf8");
+	print $xmldata;
+}
+
+
+#
+# Signal that something went wrong if there were warnings.
+#
+	exit(1) if $warnings;
+
+
+#
+# All data fetched ok.
+#
+	t "Exiting without warnings.";
+	exit(0);
+
+sub write_listings_by_days
+{
+#
+# Set the start and end dates for the requested listing:
+#
+	my $now = ParseDate( 'now' );
+
+	my $startdate =$now;
+	$startdate = DateCalc( $now, "+$opt->{offset} days" ) 
+		if( $opt->{offset} );
+		
+	my $nDays = 21; # Appears to be a reasonable "all" default
+	$nDays = $opt->{days}
+		if( $opt->{days} );
+
+	my $enddate = DateCalc( $startdate, "+$nDays days" ) ;
+
+	
+#
+# Read and parse the XMLTV listing from the ONTV pro URL:
+#
+    my $xmldata = get( $conf->{'root-url'}->[0] )
+        or return 0;
+    my $xmlparser = XML::LibXML->new;
+    my $doc = $xmlparser->parse_string($xmldata);
+    my $xmldecl = "<?xml version='" . $doc->version() . "' " . 
+        "encoding='" . "UTF-8" . "'?>\n";
+	#binmode(STDOUT, ":utf8");
+
+    
+#
+# Write the XMLTV header:
+#
+	write_header( $xmldecl );
+
+
+#
+# Print everything - except <programme> elements not matching the startdate - enddate interval:
+#
+	my $docroot = $doc->getDocumentElement;
+	my @xxprogrammes = $docroot->getChildNodes();
+	foreach my $xxprog (@xxprogrammes) 
+	{
+		# First, get start and stop times, if any:
+		my $programme_start;
+		my $programme_stop;
+		if ($xxprog->nodeType eq &XML_ELEMENT_NODE) 
+		{
+			$programme_start = $xxprog->getAttribute( 'start' );
+			$programme_stop = $xxprog->getAttribute( 'stop' );
+		}
+        
+        
+        if ($programme_start and $programme_stop)
+        {
+			# If start and end times are available, they must fit:
+			if ( (Date_Cmp($programme_stop, $startdate)>0) and (Date_Cmp($programme_start, $enddate)<0) )
+			{
+				print encode("utf8", $xxprog->toString);
+			}
+		}
+		else
+		{
+			# Otherwise, we'll just let is through
+			print encode("utf8", $xxprog->toString);
+		}
+	}
+
+
+#
+# Close the document:
+#
+	write_footer();
+}
+sub t
+{
+    my( $message ) = @_;
+    print STDERR $message . "\n" if $opt->{debug};
+}
+
+sub warning
+{
+    my( $message ) = @_;
+    print STDERR $message . "\n";
+    $warnings++;
+}
+
+sub list_channels
+{
+    my( $conf, $opt ) = @_;
+
+    my $result="";
+    my $fh = new IO::Scalar \$result;
+    my $oldfh = select( $fh );
+
+    my $xmldata = get( $conf->{'root-url'}->[0] )
+        or return 0;
+    my $xmlparser = XML::LibXML->new;
+    my $doc = $xmlparser->parse_string($xmldata);
+    #my $xmldecl = "<?xml version='" . $doc->version() . "' " . 
+    #    "encoding='" . $doc->encoding() . "'?>\n";
+    my $xmldecl = "<?xml version='" . $doc->version() . "' " . 
+        "encoding='" . "UTF-8" . "'?>\n";
+	#binmode(STDOUT, ":utf8");
+
+    write_header( $xmldecl );
+    
+    my $ns = $doc->find( "//channel" );
+    foreach my $channel ($ns->get_nodelist)
+    {
+		print encode("utf8", $channel->toString(0));
+    }
+    write_footer();
+
+    select( $oldfh );
+    $fh->close();
+
+    return $result;
+}
+
+sub config_stage
+{
+    my( $stage, $conf ) = @_;
+
+    die "Unknown stage $stage" if $stage ne "start";
+
+    my $result;
+    my $writer = new XMLTV::Configure::Writer( OUTPUT => \$result,
+                                               encoding => 'iso-8859-1' );
+    $writer->start( { grabber => 'tv_grab_dk_ontvpro' } );
+    $writer->write_string( {
+        id => 'root-url', 
+        title => [ [ 'Root URL for grabbing data', 'en' ] ],
+        description => [ 
+         [ 'When signing up for the OnTV Pro subscription, you get your own personal URL for downloading raw XMLTV listings. ' .
+           'Specify that URL here. ', 'en' ] ],
+        default => $default_root_url,
+     } );
+    $writer->write_string( {
+        id => 'cachedir', 
+        title => [ [ 'Directory to store the cache in', 'en' ] ],
+        description => [ 
+         [ 'tv_grab_dk_ontvpro uses a cache with files that it has already '. 
+           'downloaded. Please specify where the cache shall be stored. ', 
+           'en' ] ],
+        default => $default_cachedir,
+     } );
+
+    $writer->end( 'select-channels' );
+
+    return $result;
+}
+
+#
+# Load a configuration file in the old format.
+#
+
+sub load_old_config
+{
+    my( $config_file ) = @_;
+
+    my @lines = XMLTV::Config_file::read_lines( $config_file );
+    
+    my $conf = {};
+    $conf->{cachedir}->[0] = $default_cachedir;
+    $conf->{'root-url'}->[0] = $default_root_url;
+    $conf->{channel} = [];
+
+    foreach my $line (@lines)
+    {
+        next unless defined $line;
+
+        my( $command, $param ) = split( /\s+/, $line, 2 );
+        $param =~ tr/\n\r//d;
+        $param =~ s/\s+$//;
+
+        if ( $command =~ /^\s*root-url\s*$/) {
+            $conf->{'root-url'}->[0] = $param;
+        } elsif  ( $command =~ /^\s*channel\s*$/) {
+            push @{$conf->{channel}}, $param;
+        } elsif ( $command eq 'cache-dir' ) {
+            $conf->{'cachedir'}->[0] = $param;
+        } else {
+            die "Unknown command $command in config-file $config_file"
+        }
+    }
+
+    return $conf;
+}
+
+sub get_default_cachedir
+{
+    my $winhome = $ENV{HOMEDRIVE} . $ENV{HOMEPATH} 
+    if defined( $ENV{HOMEDRIVE} ) 
+        and defined( $ENV{HOMEPATH} ); 
+    
+    my $home = $ENV{HOME} || $winhome || ".";
+    return "$home/.xmltv/cache";
+}
+
+sub init_cachedir
+{
+    my( $path ) = @_;
+    if( not -d $path )
+    {
+        mkpath( $path ) or die "Failed to create cache-directory $path: $@";
+    }
+}
+
+sub load_channels
+{
+    my( $url ) = @_;
+    my %channels;
+
+    my $xmldata = get( $url )
+        or die "Failed to fetch $url";
+
+    my $xmlparser = XML::LibXML->new;
+    
+    my $doc = $xmlparser->parse_string($xmldata);
+
+    my $xmldecl = "<?xml version='" . $doc->version() . "' " . 
+        "encoding='" . $doc->encoding() . "'?>\n";
+
+    foreach my $node ($doc->find("//channel")->get_nodelist)
+    {
+        my $id = $node->findvalue( '@id' );
+        my $name = $node->findvalue( 'display-name[1]' );
+        #my $url = $node->findvalue( 'base-url' );
+        #my $urlns = $node->find( './base-url' );
+        #foreach my $urlnode ($urlns->get_nodelist)
+        #{
+        #    $node->removeChild( $urlnode );
+        #}
+        $channels{$id} = [ $name, $url, $node->toString(0) ];
+    }
+
+    return ($xmldecl, \%channels);
+}
+
+
+sub write_header
+{
+    my( $xmldecl ) = @_;
+
+    # Use the same xml declaration as the one in
+    # channels.xml
+    print $xmldecl;
+    print '<!DOCTYPE tv SYSTEM "xmltv.dtd">' . "\n";
+    print "<tv>\n";
+}
+
+sub write_footer
+{
+    print "</tv>\n";
+}
+
+
+### Setup indentation in Emacs
+## Local Variables:
+## perl-indent-level: 4
+## perl-continued-statement-offset: 4
+## perl-continued-brace-offset: 0
+## perl-brace-offset: -4
+## perl-brace-imaginary-offset: 0
+## perl-label-offset: -2
+## cperl-indent-level: 4
+## cperl-brace-offset: 0
+## cperl-continued-brace-offset: 0
+## cperl-label-offset: -2
+## cperl-extra-newline-before-brace: t
+## cperl-merge-trailing-else: nil
+## cperl-continued-statement-offset: 2
+## End:
