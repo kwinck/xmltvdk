@@ -212,14 +212,11 @@ if not (options.listchannels or options.configure):
         if line.startswith("channel"):
             line = line[len("channel"):].strip()
         if line and not line[0] == "#":
-            id, name = line.split(" ",1)
-            # check that id is an int
-            try:
-                idn = int(id)
-                chosenChannels.append((id, name))
-            except ValueError:
-                # id is not an int
-                log("Skipping unknown channel-id in line %d: %s\n" % (i+1,id))
+            cid, name = line.split(" ",1)
+            if not re.match('[-a-z0-9]*',cid):
+                log("Skipping unknown channel-id in line %d: %s\n" % (i+1,cid))
+            else:
+                chosenChannels.append((cid, name))
 
 # ensure valid cache settings
 if options.cachepolicy is None:
@@ -244,8 +241,8 @@ if options.cachedir is not None:
 
 ROOT_URL        = "http://ontv.dk/"
 CHANNELS_URL    = ROOT_URL + "ajax/channel_list.php?language=%s"
-CHANNEL_DAY_URL = ROOT_URL + 'tv/%s/%s'
-PROGRAMME_URL   = ROOT_URL + "programinfo/%s"
+CHANNEL_DAY_URL = ROOT_URL + 'tv-guide/%s/%s'
+PROGRAMME_URL   = ROOT_URL + "info/%s"
 
 def getDayURL(channelId, day):
     '''Return e.g., http://ontv.dk/tv/6/2010-01-27'''
@@ -261,8 +258,8 @@ def getProgrammeURL(programmeId):
 # (minimum-cache-policy-level-to-save-this, prefix-filename, prefix-url)
 url2fn = [
     (1, "ontv-sta-logo-",  "http://ontv.dk/imgs/epg/logos/"),
-    (1, "ontv-dyn-prg-",   "http://ontv.dk/programinfo/"),
-    (2, "ontv-dyn-day-",   "http://ontv.dk/tv/"),
+    (1, "ontv-dyn-prg-",   "http://ontv.dk/info/"),
+    (2, "ontv-dyn-day-",   "http://ontv.dk/tv-guide/"),
     (2, "ontv-sta-other-", "http://ontv.dk/"),
     (3, "ontv-somewhere-", "http://"), # we should never reach this line
     ]
@@ -381,9 +378,9 @@ def parseChannels():
     channels = []
     for lang in languages:
         data = urlopen(CHANNELS_URL % lang)[1].decode("utf-8")
-        for (no,desc) in re.findall(r'<a href="/tv/(\d+)">([^<]+)</a>',data):
+        for (no,desc) in re.findall(r'<a href="/tv-guide/([^"]+)">([^<]+)</a>',data):
             channels.append((no, desc + " " + lang.upper()))
-    channels.sort(key = lambda x: (int(x[0]), x[1].lower()))
+    channels.sort(key = lambda x: x[1].strip().lower())
     return channels
 
 
@@ -1204,7 +1201,7 @@ def getDayProgs(cid, day):
     programmes = []
     realday = day
     for tr in trs:
-        if '/programinfo/' not in tr: continue
+        if '/info/' not in tr: continue
         prg = Programme('programme')
         prg['channel'] = cid
 
@@ -1431,14 +1428,12 @@ if options.configure:
                       "cache-directory %s\n" % cdir])
     print
     print "Reading channel data from the internet."
-    for id, name in parseChannels():
-        nameascii = name.encode("ascii","replace")
-        answer = raw_input(u"Add channel %s (y/N) " % nameascii).strip()
-        print id
+    for cid, name in parseChannels():
+        answer = raw_input(u"Add channel %s (y/N) " % name).strip()
         if answer == "y":
-            lines.append(u"channel %s %s\n" % (id, name))
+            lines.append(u"channel %s %s\n" % (cid, name))
         else:
-            lines.append(u"# channel %s %s\n" % (id, name))
+            lines.append(u"# channel %s %s\n" % (cid, name))
     codecs.open(options.configfile, "w", "utf8").writelines(lines)
     sys.exit()
 
