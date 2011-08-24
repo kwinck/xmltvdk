@@ -11,7 +11,7 @@
 # a beer in return, Jens Svalgaard Kohrt
 # ----------------------------------------------------------------------------
 #
-# (c) 2008-2010 http://svalgaard.net/jens/
+# (c) 2008-2011 http://svalgaard.net/jens/
 #
 VERSION = "$Id$"
 
@@ -173,6 +173,7 @@ if options.verbose:
 else:
     # simply ignore this
     log = lambda x: x
+error = sys.stderr.write
 
 # ---------- Læs fra konfigurationsfil ---------- #
 
@@ -196,8 +197,8 @@ if not (options.listchannels or options.configure):
         if line.startswith("cache-policy"):
             val = line[len("cache-policy"):].strip()
             if val.lower() not in cachepolicies:
-                log("Unknown cache-policy in line %d: %s\n" % (i+1,repr(val)))
-                log("Possible cache-policies: %s\n" % ", ".join(cachepolicies))
+                error("Unknown cache-policy in line %d: %s\n" % (i+1,repr(val)))
+                error("Possible cache-policies: %s\n" % ", ".join(cachepolicies))
                 sys.exit(1)
             if options.cachepolicy is None: # i.e., not set from commandline
                 options.cachepolicy = cachepolicies.index(val.lower())
@@ -221,15 +222,15 @@ if not (options.listchannels or options.configure):
 # ensure valid cache settings
 if options.cachepolicy is None:
     # no cache policy set
-    options.cachepolicy = cachepolicies.index("smart")
+    options.cachepolicy = cachepolicies[defaultcachepolicy]
     log("Setting cache policy to: %s\n" %
-        cachepolicies[options.cachepolicy])
+        options.cachepolicy)
 if options.cachepolicy > 0 and options.cachedir is None:
     # no cachedir is set
     options.cachedir = defaultcachedir
     log("Setting cache directory to: %s\n" % options.cachedir)
 
-if options.cachedir is not None:
+if options.cachedir:
     if not os.path.isdir(options.cachedir):
         try:
             os.makedirs(options.cachedir)
@@ -238,6 +239,10 @@ if options.cachedir is not None:
             sys.exit(1)
 
 # ---------- URL templates --------------- #
+#
+# http://ontv.dk/tv-guide/6eren/2011-03-10
+# http://ontv.dk/info/100661299756900-ti-tommelfingre
+#
 
 ROOT_URL        = "http://ontv.dk/"
 CHANNELS_URL    = ROOT_URL + "ajax/channel_list.php?language=%s"
@@ -245,7 +250,7 @@ CHANNEL_DAY_URL = ROOT_URL + 'tv-guide/%s/%s'
 PROGRAMME_URL   = ROOT_URL + "info/%s"
 
 def getDayURL(channelId, day):
-    '''Return e.g., http://ontv.dk/tv/6/2010-01-27'''
+    '''Return e.g., http://ontv.dk/tv-guide/6eren/2011-03-10'''
     global CHANNEL_DAY_URL
     return CHANNEL_DAY_URL % (channelId, parseDay(day))
 
@@ -327,42 +332,38 @@ def urlopen(url, forceRead = False):
             # log("Using data in %s\n" % fn)
             data = gzip.open(fn).read()
             return (True, data)
-        else:
-            # not in cache
-            try:
-                data = urllib2.urlopen(url).read()
-            except urllib2.HTTPError:
-                return (False, None)
 
-            if data:
-                fd = gzip.open(fn, "wb")
-                fd.write(data)
-                fd.close()
+    # either not in cache or cached version should not be used
+    try:
+        data = urllib2.urlopen(url).read()
+    except urllib2.HTTPError:
+        return (False, None)
 
-            return (False, data)
-    else:
-        # cache should not be used
-        try:
-            data = urllib2.urlopen(url).read()
-        except urllib2.HTTPError:
-            return (False, None)
-        return (False, urllib2.urlopen(url).read())
+    # should we save this in our cache?
+    if level <= options.cachepolicy:
+        fd = gzip.open(fn, "wb")
+        fd.write(data)
+        fd.close()
+
+    return (False, data)
 
 def readUrl(url, forceRead = False):
     """readUrl(url, forceRead) -> (cache-was-used, data-from-url)
 
     If forceRead is True and using smart cache policy, then read url even
-    if a cached version is available"""
+    if a cached version is available.
+
+    Data is always returned as a unicode string"""
     RETRIES = 3
     for i in range (RETRIES):
         try:
             cu, data = urlopen(url, forceRead)
             if not data:
                 continue
+            data = data.decode('utf-8')
             return (cu,data)
         except: pass
     return (False, None)
-
 
 # ---------- Lav kanalliste ---------- #
 def parseChannels():
@@ -371,18 +372,17 @@ def parseChannels():
     global ROOT_URL, CHANNELS_URL
     
     # find list of languages/groups
-    data = readUrl(ROOT_URL)[1].decode("utf-8")
+    data = readUrl(ROOT_URL)[1]
     languages = re.findall(r"showChannels\('(..)'\);",data)
 
     # walk through all "languages"
     channels = []
     for lang in languages:
-        data = urlopen(CHANNELS_URL % lang)[1].decode("utf-8")
+        data = readUrl(CHANNELS_URL % lang)[1]
         for (no,desc) in re.findall(r'<a href="/tv-guide/([^"]+)">([^<]+)</a>',data):
             channels.append((no, desc + " " + lang.upper()))
     channels.sort(key = lambda x: x[1].strip().lower())
     return channels
-
 
 # ---------- Funktioner til at lave tidszoner korrekt ---------- #
 # se evt. timefix.py
@@ -474,13 +474,14 @@ def jumptime (days = 0, hours = 0, minutes = 0, tz = -1):
     day = noon(days)[:3]
     return day + (hours,minutes,0,0,1,tz)
 
+#xxx
 def unescape(text):
     def fixup(m):
         text = m.group(0)
-        if text[:2] == "&#":
+        if text[:2] == u"&#":
             # character reference
             try:
-                if text[:3] == "&#x":
+                if text[:3] == u"&#x":
                     return unichr(int(text[3:-1], 16))
                 else:
                     return unichr(int(text[2:-1]))
@@ -493,7 +494,7 @@ def unescape(text):
             except KeyError:
                 pass
         return text # leave as is
-    return re.sub("&#?\w+;", fixup, text)
+    return re.sub(u"&#?\w+;", fixup, text)
 
 def compact(s, alsoLineBreaks = False):
     s = unescape(s)
@@ -983,7 +984,7 @@ addPrefixFilter(ur'Medvirkende:', fExtras)
 def fOriginalTitle(prg, line, prefix, rest):
     prg.addTag('title_en', rest.strip('.'))
     return ''
-addPrefixFilter(ur'Originaltite?l?e?:', fOriginalTitle)
+addPrefixFilter(ur'Original ?tite?l?e?:', fOriginalTitle)
 
 def fLength(prg, line, prefix, rest):
     'Længde: xxx min'
@@ -1064,7 +1065,6 @@ TODO = '''Maybe also parse somethings like
 
 Hvis : i titel og ingen sub-title, split!
 
-
 if first line is repeated as the first part of the second line
 if first line or subtitle is repeated later in (again)
 o.w. if in (...), then is probably the origial title
@@ -1087,8 +1087,6 @@ first line with a dash:     - det er da ikke noget at skamme sig over! => subtit
     Snowbell: Nathan Lane. (stemme)
     Manuskript: M. Night Shyamalan og Greg Brooker efter E.B. Whites børnebog.
  
-
-
 FIXIT
 '''
 
@@ -1195,7 +1193,7 @@ def getDayProgs(cid, day):
         # log("[-No data available for day %s-]" % day)
         log(" :(")
         return []
-    data = compact(data.decode("utf8"), True)
+    data = compact(data, True)
     trs = re.findall(r'<tr.*?</tr>',data)
     
     programmes = []
@@ -1205,8 +1203,9 @@ def getDayProgs(cid, day):
         prg = Programme('programme')
         prg['channel'] = cid
 
-        # Extract time, number and name
-        mre = re.search(u'<p>(\d\d):(\d\d):</p>.*<a[^>]*programid="([0-9]+)"[^>]*>([^<]+)</a>', tr)
+        # Extract time, pid and name
+        # mre = re.search(u'<p>(\d\d):(\d\d):</p>.*<a[^>]*programid="([0-9]+)"[^>]*>([^<]+)</a>', tr)
+        mre = re.search(u'<p>(\d\d):(\d\d):</p>.*<a[^>]*href="/info/([^"]+)"[^>]*>([^<]+)</a>', tr)
         if not mre:
             continue
         sh,sm, pid, title = mre.groups()
@@ -1262,15 +1261,19 @@ def extendProgram(prg, forceRead = False):
     errcode = (cused and 1) or -1
     if not data:
         return errcode
-    data = data.decode('utf8')
+    data = data
     
     ###########################
 
+    # first delete ads
+    data = re.sub(ur'<a[^>]+nofollow.*?>.*?</a>', '', data)
     # find blob with interesting data
-    mpre = re.search('<td><h1>(.+?)</h1><p>', data)
+    # and always skip the first <p>...</p>
+    mpre = re.search('<td><h1>([^<]+)</h1><p>(?:[^<]+?)</p>', data)
     if not mpre:
         # nothing here!
         return errcode
+
 
     find_t = data.find('<table',mpre.end())
     find_td = data.find('</td>', mpre.end())
@@ -1364,7 +1367,7 @@ def getAll(cid, day):
             pass
 
         # try again
-        log('!')
+        log('!--%s--' % prg.pid)
         r = extendProgram(oprg, True)
         yield oprg
 
@@ -1373,7 +1376,7 @@ def getChannelIcon(cid):
     url = getDayURL(cid, 2)
     data = readUrl(url)[1]
     if data: 
-        data = data.decode("utf-8")
+        data = data
         icons = re.findall('http://ontv.dk/imgs/epg/logos/[^\'"]+', data)
         if icons: 
             return icons[0]
@@ -1386,7 +1389,7 @@ if options.configure:
     sys.stdout = codecs.getwriter(getNiceEncoding())(sys.stdout)
     folder = os.path.dirname(options.configfile)
     print u"The configuration will be saved in '%s'." % options.configfile
-    if not os.path.isdir(folder):
+    if folder and not os.path.isdir(folder):
         os.makedirs(folder)
     if os.path.exists(options.configfile):
         answer = raw_input(u"'%s' does already exist. Do you want to overwrite it? (y/N) " % options.configfile).strip().lower()
