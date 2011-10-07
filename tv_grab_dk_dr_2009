@@ -326,6 +326,26 @@ sub get_available_dates()
      return \%available_dates;
 }
 
+sub adjust_time($$)
+{
+    my ( $xml, $fetch_date ) = @_;
+
+    my ($year, $month, $day, $hour, $minute, $second, $tz) = $xml =~ m/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2}) (.*)$/;
+
+    my $dt = DateTime->new(year => $year, month => $month, day => $day, hour => $hour, minute => $minute, second => $second, time_zone => $tz);
+
+    my $res = $dt->strftime('%Y%m%d%H%M%S %z');
+
+    while ($fetch_date->delta_days($dt)->days > 1) {
+	$dt->add(days => -1);
+	$res = $dt->strftime('%Y%m%d%H%M%S %z');
+    }
+
+    #print STDERR "Changing date from $xml to $res\n" if ($xml ne $res);
+
+    return $res;
+}
+
 sub get_schedules($$)
 {
     my ( $chan, $date ) = @_;
@@ -361,6 +381,10 @@ sub get_schedules($$)
 	       $chan->{'_name'}. "\" (".$chan->{'id'}.") date ". $date . "\n");
 	return \@results;
     }
+
+    my ($year, $month, $day) = $date =~ m/(\d{4})-(\d{2})-(\d{2})/;
+    my $fetch_dt = DateTime->new(year => $year, month => $month, day => $day);
+
     foreach my $listing (@{$parsed->{'result'}}) {
 	my %p = ();
 	# Delete things that we don't want to use before dumping
@@ -372,6 +396,16 @@ sub get_schedules($$)
 	$p{'channel'} = $chan->{'id'};
 	$p{'start'} = dr_date_to_xml($listing->{'pg_start'});
 	$p{'stop'} = dr_date_to_xml($listing->{'pg_stop'});
+
+	# Very big hack!
+	#
+	# Currently the day is off by one, for the program-times that
+	# are after midnight. The very simply way we deal with this,
+	# is to prevent times that are more than one day away from the
+	# fetch-day.
+        $p{'start'} = adjust_time($p{'start'}, $fetch_dt);
+        $p{'stop'} = adjust_time($p{'stop'}, $fetch_dt);
+
 	# elements
 
 	########################################
