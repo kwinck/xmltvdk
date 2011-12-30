@@ -40,6 +40,7 @@ use XMLTV::Configure::Writer;
 use Data::Dumper;
 use Parse::RecDescent;
 use LWP;
+use IO::Scalar;
 
 use DateTime;
 
