@@ -10,7 +10,7 @@ import sys
 # Rækkefølge grabbere skal merges
 # Grabberne er sorteret efter hvor mange dages oversigt de leverer, 
 # da det giver det mest stabile resultat
-mergeorder = ("dr","tvtid","yousee","jubii","dr_2009","swedb")
+mergeorder = ("dr_2009","ontv","yousee","swedb")
 
 mergeorderpath = os.path.normpath(os.path.join(os.path.dirname(sys.argv[0]),"mergeorder.conf"))
 if os.path.isfile(mergeorderpath):
@@ -63,6 +63,19 @@ interpreters = {
     "tvguiden":"python",
     "swedb":"perl",
     "dr_2009":"perl"
+} 
+
+#Hvilke options grabbere skal kÃ¸res med
+options = {
+    "tvtid":"",
+    "dr":"",
+    "yousee":"",
+    "ahot":"",
+    "ontv":"",
+    "jubii":"",
+    "tvguiden":"",
+    "swedb":"",
+    "dr_2009":" --days 14"
 } 
 
 #Om grabberen skal have splittitle kÃ¸rt
@@ -428,11 +441,11 @@ import runall
 grabcommands = []
 for g, command in grabbers.iteritems():
     if g in configFiles:
-        grabcommands += ['%s "%s" --config-file "%s" > "%s"' % \
-            (interpreters[g], command, CONFIGDIR+configFiles[g], df+g)]
+        grabcommands += ['%s "%s" %s --config-file "%s" > "%s"' % \
+            (interpreters[g], command, options[g], CONFIGDIR+configFiles[g], df+g)]
     else:
-        grabcommands += ['%s "%s" > "%s"' % \
-            (interpreters[g], command, df+g)]
+        grabcommands += ['%s "%s" %s > "%s"' % \
+            (interpreters[g], command, options[g], df+g)]
 print "Starter grabbere:"
 print grabcommands
 runall.runEm(grabcommands)
