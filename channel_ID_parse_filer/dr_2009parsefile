@@ -19,7 +19,8 @@ TVR.dr.dk	dr_ramasjang
 ans.dr.dk	animal_planet
 ard.dr.dk	ard
 arg.dr.dk	arte
-bbp.dr.dk	bbc_prime
+bbp.dr.dk	bbce
+050.dr.dk	bbc_life
 bbw.dr.dk	bbc_world
 ca9.dr.dk	canal_9
 cbd.dr.dk	canal_film3
@@ -78,6 +79,7 @@ t0d.dr.dk	tv1000
 t1d.dr.dk	tv1000_classic
 t2f.dr.dk	tv2_film
 t2s.dr.dk	tv2_sport
+092.dr.dk	tv2_sporthd
 t2z.dr.dk	zulu
 t6a.dr.dk	viasat_nature
 td2.dr.dk	tv2
@@ -97,5 +99,8 @@ vs3.dr.dk	viasat_sport_3
 vse.dr.dk	viasat_explorer
 vss.dr.dk	viasat_sport_sverige
 zdf.dr.dk	zdf
-t6a.dr.dk	6eren
+snt.dr.dk	6eren
 058.dr.dk	disneyxd
+117.dr.dk	kanalhoved
+diT.dr.dk	tlc
+plh.dr.dk	disney_junior
