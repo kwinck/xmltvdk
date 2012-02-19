@@ -7,7 +7,7 @@ import os
 import codecs
 import sys
 
-# R�kkef�lge grabbere skal merges
+# Rækkefølge grabbere skal merges
 # Grabberne er sorteret efter hvor mange dages oversigt de leverer, 
 # da det giver det mest stabile resultat
 mergeorder = ("dr_2009","ontv","yousee","swedb")
@@ -34,10 +34,6 @@ CONFIGFILE = CONFIGDIR+"tv_grab_dk_all.conf"
 
 #Grabbere, der ikke bliver hentet af filegrabber
 grabbers = {}
-#if os.name in ("nt", "dos"): grabbers["tv2"] = r"C:\Perl\site\lib\xmltv\dk\tv_grab_dk"
-#elif os.name == "posix": grabbers["tv2"] = "/usr/bin/tv_grab_dk"
-#else: grabbers["tv2"] = "/usr/bin/tv_grab_dk"
-#TODO: Andre os'er: mac, os2, ce
 
 #Titlerne på grabberne
 grabberNames = {
@@ -88,7 +84,7 @@ needSplittitle = {
 
 #Navne på forskellige configfiler. 
 #Hvis en grabber ikke har et entry i denne liste, vil der ikke blive lavet nogen configfil automatisk. 
-#Grabberen skal i det tilf�lde konfigureres s�rskilt.
+#Grabberen skal i det tilfælde konfigureres særskilt.
 configFiles = {
     "tvtid":"tv_grab_dk_tvtid.conf",
     "dr":"tv_grab_dk_dr.conf",
@@ -226,38 +222,7 @@ if not '--noupdate' in opts:
             print "Can not copy files from sourceforge. Is the connection down? Tries to continue without"
 
 #     -----     Finder filer     -----     #
-#Kigger efter tv2 grabberen
-#tv2placfil = "tv2placeringsfil"
-#if os.path.isfile(tv2placfil):
-#    grabbers["tv2"] = [l.strip() for l in open(tv2placfil) if len(l.strip()) > 0][0]
-#if not os.path.isfile(grabbers["tv2"]):
-#    sys.stderr.write("Kunne ikke automatisk finde tv2grabberens placering.\n")
-#    sys.stderr.write("Ledte på %s\n" % grabbers["tv2"])
-#    while True:
-#        path = raw_input("Rigtig placering: ")
-#        if not os.path.isfile(path):
-#            sys.stderr.write("Ingen fil på %s\n" % path)
-#            continue
-#        grabbers["tv2"] = path
-#        f = open(tv2placfil, "w")
-#        f.write(path)
-#        f.close()
-#        break
-#print "Using tv2 grabber in "+grabbers["tv2"]*/
-#kigger efter tv_grab_dk_dr grabberen:
-#if "dr" in mergeorder:
-#    drpath="./tv_grab_dk_dr"
-#    if not os.path.isfile(drpath):
-#        drpath="/usr/bin/tv_grab_dk_dr"
-#        if not os.path.isfile(drpath):
-#            drpath=r"C:\Perl\site\lib\xmltv\dk\tv_grab_dk_dr"
-#            if not os.path.isfile(drpath):
-#                drpath=r"C:\Perl\site\lib\xmltv\tv_grab_dk_dr"
-#    if os.path.isfile(drpath):
-#        grabbers["dr"]=drpath
-#        print "Using DR grabber in "+grabbers["dr"]
-#    else:
-#        print "Kan ikke finde tv_grab_dk_dr grabberen. Fortsaetter uden."
+
 #kigger efter tv_grab_dk_dr_2009 grabberen:
 if "dr_2009" in mergeorder:
     drpath="./tv_grab_dk_dr_2009"
@@ -299,6 +264,7 @@ for file in os.listdir("."):
             for line in open(file):
                 k, v = [v.strip() for v in line.split("\t",1)]
                 dic[v] = k
+                print "Adding channel " + v + "=" + k
             parsedicts[file[:-9]] = dic
 for grabber in grabbers:
     print "Using "+grabber+" grabber in "+grabbers[grabber]
