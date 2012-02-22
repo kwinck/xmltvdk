@@ -629,6 +629,10 @@ class Programme(Tag):
         self[tag] = ts2string(jumptime(*timest))
 
 def slightlystripped(s):
+    ## Assume any <a>..</a> is an ad, just remove it
+    p = re.compile('<a.*</a>', re.DOTALL)
+    s = re.sub(p, '', s)
+
     s = s.replace('\t', ' ')
     s = re.sub('(</?p>|<br ?/?>|</?h[^>]+>|</?t[^>]+>)','\n', s).strip()
     s = s.replace('&nbsp;',' ')
