@@ -50,13 +50,16 @@ use IO::Scalar;
 use DateTime;
 
 # TODO: This ought be in a config file, I suppose. But for now, it lives here.
-my @title_fixups = (); # regexp => [ $title, $subtitle ]
+my @title_fixups = (); # regexp => [ $title, $subtitle ]. Or when prefixed with "#", regexp => [ $title, #$episode-num ].
+# DR renames stuff...:
 push @title_fixups, ['^Historien om\s+(.+)$', [ '\'Historien om\'', '$1']];
 push @title_fixups, ['^DR2\s*Premiere\s+(.+)$', ['\'DR2 Premiere\'', '$1']];
+# Extract episode number if possible:
+push @title_fixups, ['^(.+)\s*\((\d{1,3})\)\s*$', ['$1', '#$2']];
+push @title_fixups, ['^(.+)\s*(\(\d+\:\d+\))\s*$', ['$1', '#$2']]; # episode num copy
+# Move to sub-title, when " - " or " : " is in title.
 push @title_fixups, ['^(.+)\s*\:\s+(.+)$', ['$1', '$2']];
 push @title_fixups, ['^(.+)\s+\-\s+(.+)$', ['$1', '$2']];
-push @title_fixups, ['^(.+)\s*\((\d+\:\d+)\)\s*$', ['$1', '$2']];
-push @title_fixups, ['^(.+)\s*\((\d{1,3})\)\s*$', ['$1', '#$2']];
 
 my $debug = 0; # Plenty of extra output.
 
@@ -329,8 +332,13 @@ sub get_schedules($$$)
 			    my $str = $placements->[1];
 			    if (substr($str, 0, 1) eq '#') {
 				my $e = eval substr($str, 1);
-				$episodenum = $e;
-				$p{'episode-num'} = [ [ " . " . ($e - 1) . " . ", "xmltv_ns" ] ];
+				if ($e =~ m/(\d+)\:(\d+)/) {
+				    $episodenum = $1;
+				    $p{'episode-num'} = [ [ " . " . ($1 - 1) . "/" . $2 . " . ", "xmltv_ns" ] ];
+				} else {
+				    $episodenum = $e;
+				    $p{'episode-num'} = [ [ " . " . ($e - 1) . " . ", "xmltv_ns" ] ];
+                               }
 			    } else {
 				$subtitle .= eval $placements->[1];
 			    }
@@ -398,9 +406,16 @@ sub get_schedules($$$)
 	    }
 
 	    ########################################
-	    # Genudsendelse
+	    # Genudsendelse, HD, etc.
 	    if ($listing->{'IsRerun'} eq 'true') {
 		$p{'previously-shown'} = {};
+	    }
+	    if ($listing->{'DisplayHD'}) {
+		$p{'video'}{'quality'} = 'HDTV';
+	    } 
+	    
+	    if ($listing->{'Display16_9'}) {
+		$p{'video'}{'aspect'} = '16:9';
 	    }
 
 	    ########################################
@@ -484,7 +499,9 @@ for (my $c=0; $c<$opt->{'days'}; $c++) {
 	} else {
 	    #print "ID: $cid Name: " .
 	    #$chan->{'display-name'}[0][0]."\n";
-	    my $schedules = get_schedules($conf, $chan, $c);
+	    my $day = $c;
+	    $day += $opt->{offset} if ($opt->{offset});
+	    my $schedules = get_schedules($conf, $chan, $day);
 	    if ("ARRAY" ne ref($schedules)) {
 		warn("Schedules for $cid on day $c not valid - empty?\n");
 		next;
