@@ -176,7 +176,7 @@ sub getUrl($) {
     $req->header('Accept-Charset' => $encoding);
     my $res = $ua->request($req);
     if ($res->is_success) {
-	if ($res->header('Content-Type') =~ /[^\/]+\/[^\/]+\;\s*charset=(.*)$/) {
+	if ($res->header('Content-Type') && $res->header('Content-Type') =~ /[^\/]+\/[^\/]+\;\s*charset=(.*)$/) {
 	    $encoding = $1;
 	}
 	return $res->decoded_content(charset => $encoding);
@@ -259,15 +259,16 @@ sub get_dr_channel_list($)
 
 sub json_date_to_xmltv($)
 {
-    # Format: \/Date(1352178000000)\/ -> 20090613123456 +0000
+    # Format: \/Date(1352178000000)\/ -> 20090613123456 +0100
     my ($d) = @_;
     if ($d =~ m/Date\((\d+)([+-]\d\d\d\d)?\)/ ) {
 	my ( $epoch_milliseconds, $timezone ) = ( $1, $2 );
-	my $dt = DateTime->from_epoch( epoch => $epoch_milliseconds / 1000, time_zone => $LocalTZ );
+	my $dt = DateTime->from_epoch( epoch => $epoch_milliseconds / 1000 );
 	if ($timezone) {
 	    $dt->set_time_zone($timezone);
 	}
-	return $dt->format_cldr('yyyyMMddHHmmss') . ' +0000';
+	$dt->set_time_zone($LocalTZ);
+	return $dt->format_cldr('yyyyMMddHHmmss ZZZ');
     } else {
 	return 0;
     }
@@ -315,6 +316,7 @@ sub get_schedules($$$)
 	    my $title = $listing->{'Title'};
 	    if (@title_fixups && defined $title) {
 		my $subtitle = '';
+		my $episodenum;
 		for my $fixup (@title_fixups) {
 		    my $match = $fixup->[0];
 		    #print "Inspecting '$title' for match $match\n";
@@ -327,6 +329,7 @@ sub get_schedules($$$)
 			    my $str = $placements->[1];
 			    if (substr($str, 0, 1) eq '#') {
 				my $e = eval substr($str, 1);
+				$episodenum = $e;
 				$p{'episode-num'} = [ [ " . " . ($e - 1) . " . ", "xmltv_ns" ] ];
 			    } else {
 				$subtitle .= eval $placements->[1];
@@ -334,6 +337,20 @@ sub get_schedules($$$)
 			}
 		    }
 		}
+
+		########################################
+		# Sæt afsnitsnummer ind først i subtitle, hvis ønsket.
+		my $episode_in_subtitle = $conf->{'episode-in-subtitle'};
+		if (defined $episode_in_subtitle && defined $episode_in_subtitle->[0]) {
+		    if (defined $episodenum) {
+			if ($subtitle eq '') {
+			    $subtitle = $episode_in_subtitle->[0] . ' ' . $episodenum;
+			} else {
+			    $subtitle = $episode_in_subtitle->[0] . ' ' . $episodenum . ': ' . $subtitle;
+			}
+		    }
+		}
+
 		if ($subtitle ne '') {
 		    $p{'sub-title'} = [ [ $subtitle,
 					  $chan->{'_lang'} ] ];
@@ -469,7 +486,7 @@ for (my $c=0; $c<$opt->{'days'}; $c++) {
 	    #$chan->{'display-name'}[0][0]."\n";
 	    my $schedules = get_schedules($conf, $chan, $c);
 	    if ("ARRAY" ne ref($schedules)) {
-		&warning("Schedules for $cid on day $c not valid - empty?\n");
+		warn("Schedules for $cid on day $c not valid - empty?\n");
 		next;
 	    }
 	    foreach my $s (@$schedules) {
