@@ -7,10 +7,10 @@ import os
 import codecs
 import sys
 
-# Rækkefølge grabbere skal merges
+# R�kkef�lge grabbere skal merges
 # Grabberne er sorteret efter hvor mange dages oversigt de leverer, 
 # da det giver det mest stabile resultat
-mergeorder = ("dr_2009","ontv","yousee","swedb")
+mergeorder = ("dr_2012","yousee","swedb")
 
 mergeorderpath = os.path.normpath(os.path.join(os.path.dirname(sys.argv[0]),"mergeorder.conf"))
 if os.path.isfile(mergeorderpath):
@@ -45,7 +45,8 @@ grabberNames = {
     "tv_grab_dk_tvguiden.py":"tvguiden",
     "tv_grab_dk_dr":"dr",
     "tv_grab_se_swedb":"swedb",
-    "tv_grab_dk_dr_2009":"dr_2009"
+    "tv_grab_dk_dr_2009":"dr_2009",
+    "tv_grab_dk_dr_2012":"dr_2012"
 }
 
 #Hvilke programmer grabbere skal køres med
@@ -58,7 +59,8 @@ interpreters = {
     "jubii":"python",
     "tvguiden":"python",
     "swedb":"perl",
-    "dr_2009":"perl"
+    "dr_2009":"perl",
+    "dr_2012":"perl"
 } 
 
 #Hvilke options grabbere skal køres med
@@ -71,7 +73,8 @@ options = {
     "jubii":"",
     "tvguiden":"",
     "swedb":"",
-    "dr_2009":" --days 14"
+    "dr_2009":" --days 14",
+    "dr_2012":" --days 14"
 } 
 
 #Om grabberen skal have splittitle kørt
@@ -84,7 +87,7 @@ needSplittitle = {
 
 #Navne på forskellige configfiler. 
 #Hvis en grabber ikke har et entry i denne liste, vil der ikke blive lavet nogen configfil automatisk. 
-#Grabberen skal i det tilfælde konfigureres særskilt.
+#Grabberen skal i det tilf�lde konfigureres s�rskilt.
 configFiles = {
     "tvtid":"tv_grab_dk_tvtid.conf",
     "dr":"tv_grab_dk_dr.conf",
@@ -94,13 +97,15 @@ configFiles = {
     "swedb":"tv_grab_se_swedb.conf",
     "tvguiden":"tv_grab_dk_tvguiden_py.conf",
     "yousee":"tv_grab_dk_yousee.conf",
-    "dr_2009":"tv_grab_dk_dr_2009.conf"
+    "dr_2009":"tv_grab_dk_dr_2009.conf",
+    "dr_2012":"tv_grab_dk_dr_2012.conf"
 }
 
 #Her kan der defineres linier som placeres i starten af conf filen:
 extraConfigLines = {
     "yousee":"firstLang=Original\ncreditsInDesc=Yes\nsplitTitles=Yes",
-    "dr_2009":"accept-copyright-disclaimer=accept\ninclude-radio=0\nroot-url=http://www.dr.dk/tjenester/programoversigt/"
+    "dr_2009":"accept-copyright-disclaimer=accept\ninclude-radio=0\nroot-url=http://www.dr.dk/tjenester/programoversigt/",
+    "dr_2012":"accept-copyright-disclaimer=accept\ninclude-radio=0\nroot-url=http://www.dr.dk/tv/oversigt/json/guide/\nepisode-in-subtitle=Yes"
 }
 
 #Særlige funktioner til oversættelse af parsefil -> configfil
@@ -108,6 +113,7 @@ configAdaptors = {
     "tvtid": lambda t, a: "channel %s %s" % (t, a),
     "dr":    lambda t, a: "channel %s %s" % (t[:3], a),
     "dr_2009":    lambda t, a: "channel=%s" % (t),
+    "dr_2012":    lambda t, a: "channel=%s" % (t),
     "swedb": lambda t, a: "channel=%s" % (t)
 }
 
@@ -172,6 +178,7 @@ if not '--noupdate' in opts:
                 "ahotparsefile",
                 "drparsefile",
                 "dr_2009parsefile",
+                "dr_2012parsefile",
                 "jubiiparsefile",
                 "ontvparsefile",
                 "swedbparsefile",
@@ -201,6 +208,7 @@ if not '--noupdate' in opts:
                 "tv_grab_dk_ahot.py",
                 "tv_grab_dk_dr",
                 "tv_grab_dk_dr_2009",
+                "tv_grab_dk_dr_2012",
                 "tv_grab_dk_jubii.py",
                 "tv_grab_dk_ontv.py",
                 "tv_grab_se_swedb",
@@ -222,7 +230,6 @@ if not '--noupdate' in opts:
             print "Can not copy files from sourceforge. Is the connection down? Tries to continue without"
 
 #     -----     Finder filer     -----     #
-
 #kigger efter tv_grab_dk_dr_2009 grabberen:
 if "dr_2009" in mergeorder:
     drpath="./tv_grab_dk_dr_2009"
