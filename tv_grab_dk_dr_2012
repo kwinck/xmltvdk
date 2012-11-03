@@ -38,6 +38,8 @@
 use strict;
 use warnings;
 
+use open qw/:std :utf8/;
+
 use JSON;
 use XMLTV;
 use XMLTV::ProgressBar;
