@@ -42,8 +42,8 @@ cmf.dr.dk	canal_mix
 cps.dr.dk	canal_sport
 cs7.dr.dk	canal_sport2
 cnn.dr.dk	cnn
-057.dr.dk	"Discovery HD Showcase"
-119.dr.dk	"Discovery Investigation"
+057.dr.dk	discovery_hd
+119.dr.dk	discovery_investigation
 diS.dr.dk	discovery_science
 diC.dr.dk	discovery_world
 218.dr.dk	disney_channel
@@ -52,7 +52,7 @@ plh.dr.dk	disney_junior
 062.dr.dk	eurosport2
 122.dr.dk	folketinget
 064.dr.dk	history_channel
-108.dr.dk	kanal_bornholm
+108.dr.dk	kanalbornholm
 112.dr.dk	fynboen
 117.dr.dk	kanalhoved
 mtv.dr.dk	mtv
@@ -63,7 +63,7 @@ tn3.dr.dk	ndr
 nis.dr.dk	nickelodeon
 nk1.dr.dk	nrk_1
 nk2.dr.dk	nrk_2
-pr7.dr.dk	pro7
+pr7.dr.dk	pro_7
 r371.dr.dk	tv2_ostjylland
 r372.dr.dk	tv2_bornholm
 r373.dr.dk	tv2_fyn
@@ -101,8 +101,8 @@ tv3.dr.dk	sverige_3
 101.dr.dk	tv4_sport
 tv4.dr.dk	sverige_4
 ft5.dr.dk	tv_5
-121.dr.dk	"TV6"
-120.dr.dk	"TV-SDJ"
+121.dr.dk	sverige_6
+120.dr.dk	tv_sdj
 vh1.dr.dk	vh1
 vse.dr.dk	viasat_explorer
 t0d.dr.dk	tv1000
