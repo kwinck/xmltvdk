@@ -260,7 +260,7 @@ sub get_dr_channel_list($)
 	    $channels = from_json( $content, { utf8  => 1 } );
 	} catch {
 	    warn "Failed to get channels: $_";
-	}
+	};
 	#print Dumper $parsed;
 	my $c = $channels->{'Channels'};
 	push(@results, @$c);
@@ -299,14 +299,14 @@ sub get_schedules($$$)
 
     my @results = ();
     
-    my $parsed;
+    my $parsed = ();
     try {
 	$parsed = from_json( $content, { utf8  => 1 } );
     } catch {
 	# Ignoring failed json parses.
-    }
+    };
 
-    if ((!$parsed) || ("HASH" ne ref ($parsed)) )  {
+    if (!$parsed || ("HASH" ne ref $parsed))  {
 	&warning("(BUG?) Parser barfed while processing channel " .
 		 $chan->{'_name'}. " date ". $date . " (empty result?) URL: $url\n");
 	print STDERR "Content: $content\n";
@@ -403,7 +403,7 @@ sub get_schedules($$$)
 			$description =~ s/\s*\n\s*/. /g;
 		    } catch {
 			# Ignoring failed json parses, leaving desc empty.
-		    }
+		    };
 		}
 	    }
 
