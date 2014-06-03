@@ -105,7 +105,7 @@ configFiles = {
 extraConfigLines = {
     "yousee":"firstLang=Original\ncreditsInDesc=Yes\nsplitTitles=Yes",
     "dr_2009":"accept-copyright-disclaimer=accept\ninclude-radio=0\nroot-url=http://www.dr.dk/tjenester/programoversigt/",
-    "dr_2012":"accept-copyright-disclaimer=accept\ninclude-radio=0\nroot-url=http://www.dr.dk/tv/oversigt/json/guide/\nepisode-in-subtitle=No"
+    "dr_2012":"accept-copyright-disclaimer=accept\ninclude-radio=0\nroot-url=http://www.dr.dk/tjenester/program-guide/json/guide/\nepisode-in-subtitle=No"
 }
 
 #Særlige funktioner til oversættelse af parsefil -> configfil
