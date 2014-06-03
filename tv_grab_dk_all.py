@@ -159,7 +159,7 @@ if not '--noupdate' in opts:
     try:
         print "Reading revision of sourceforge"
         folderlist=urllib2.urlopen("http://xmltvdk.svn.sourceforge.net/viewvc/xmltvdk/trunk/").read()
-        m=re.search('<td>Directory revision:</td>\n*<td><a href="/viewvc/xmltvdk\\?view=revision&amp;revision=([0-9]+)"', folderlist)
+        m=re.search('\\[r([0-9]+)\\]', folderlist)
         svnrevision=int(m.group(1))
         print "Sourceforge xmltvdk repository is at revision "+str(svnrevision)
     except:
