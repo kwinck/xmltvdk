@@ -69,10 +69,10 @@ my $debug = 0; # Plenty of extra output.
 my $grabber_name = 'tv_grab_dk_dr_2012';
 my $id_prefix = '.dr.dk';
 
-my $default_root_url = 'http://www.dr.dk/tv/oversigt/json/guide/';
+my $default_root_url = 'http://www.dr.dk/tjenester/program-guide/json/guide/';
 
 my %grabber_tags = ( 'source-info-url'	   =>
-		     'http://www.dr.dk/tv/oversigt/json/guide/',
+		     'http://www.dr.dk/tjenester/program-guide/json/guide/',
 		     'source-info-name'	   =>
 		     'DR TV Oversigt',
 		     'generator-info-name' =>
