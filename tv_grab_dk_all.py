@@ -7,7 +7,7 @@ import os
 import codecs
 import sys
 
-# Rækkefølge grabbere skal merges
+# Raekkefoelge grabbere skal merges
 # Grabberne er sorteret efter hvor mange dages oversigt de leverer, 
 # da det giver det mest stabile resultat
 mergeorder = ("dr_2012","yousee","swedb")
@@ -49,7 +49,7 @@ grabberNames = {
     "tv_grab_dk_dr_2012":"dr_2012"
 }
 
-#Hvilke programmer grabbere skal kÃ¸res med
+#Hvilke programmer grabbere skal koeres med
 interpreters = {
     "tvtid":"perl -I perllib/",
     "dr":"perl",
@@ -63,7 +63,7 @@ interpreters = {
     "dr_2012":"perl"
 } 
 
-#Hvilke options grabbere skal kÃ¸res med
+#Hvilke options grabbere skal koeres med
 options = {
     "tvtid":"",
     "dr":"",
@@ -77,7 +77,7 @@ options = {
     "dr_2012":" --days 14"
 } 
 
-#Om grabberen skal have splittitle kÃ¸rt
+#Om grabberen skal have splittitle koert
 needSplittitle = {
     "dr":True,
     "dr_2009":True
@@ -85,9 +85,9 @@ needSplittitle = {
 
 #De efterfoelgende strukturer bestemmer formatet paa grabbernes config filer:
 
-#Navne pÃ¥ forskellige configfiler. 
+#Navne paa forskellige configfiler. 
 #Hvis en grabber ikke har et entry i denne liste, vil der ikke blive lavet nogen configfil automatisk. 
-#Grabberen skal i det tilfælde konfigureres særskilt.
+#Grabberen skal i det tilfaelde konfigureres saerskilt.
 configFiles = {
     "tvtid":"tv_grab_dk_tvtid.conf",
     "dr":"tv_grab_dk_dr.conf",
@@ -108,7 +108,7 @@ extraConfigLines = {
     "dr_2012":"accept-copyright-disclaimer=accept\ninclude-radio=0\nroot-url=http://www.dr.dk/tjenester/program-guide/json/guide/\nepisode-in-subtitle=No"
 }
 
-#SÃ¦rlige funktioner til oversÃ¦ttelse af parsefil -> configfil
+#Saerlige funktioner til oversaettelse af parsefil -> configfil
 configAdaptors = {
     "tvtid": lambda t, a: "channel %s %s" % (t, a),
     "dr":    lambda t, a: "channel %s %s" % (t[:3], a),
@@ -175,19 +175,17 @@ if not '--noupdate' in opts:
     if localrevision<svnrevision:
         try:
             parsefiles = (
-                "ahotparsefile",
-                "drparsefile",
-                "dr_2009parsefile",
                 "dr_2012parsefile",
                 "jubiiparsefile",
                 "ontvparsefile",
                 "swedbparsefile",
-                "tvguidenparsefile",
                 "tvtidparsefile",
                 "youseeparsefile")
             for filename in parsefiles:
                 print "Copying "+filename+" from sourceforge"
-                contents=urllib2.urlopen("http://xmltvdk.svn.sourceforge.net/viewvc/*checkout*/xmltvdk/trunk/channel_ID_parse_filer/"+filename).read()
+                path="https://sourceforge.net/p/xmltvdk/code/HEAD/tree/trunk/channel_ID_parse_filer/"+filename+"?format=raw"
+                print "Reading from "+path
+                contents=urllib2.urlopen(path).read()
                 file=open(filename,"w")
                 file.write(contents)
                 file.close()
@@ -205,21 +203,18 @@ if not '--noupdate' in opts:
                 "runall.py",
                 "splittitle.py",
                 "timefix.py",
-                "tv_grab_dk_ahot.py",
-                "tv_grab_dk_dr",
-                "tv_grab_dk_dr_2009",
                 "tv_grab_dk_dr_2012",
                 "tv_grab_dk_jubii.py",
                 "tv_grab_dk_ontv.py",
                 "tv_grab_se_swedb",
-                "tv_grab_dk_tvguiden.py",
                 "tv_grab_dk_tvtid",
                 "tv_grab_dk_yousee.py",
                 "xmltvanalyzer.py",
                 "xmltvmerger.py")
             for filename in files:
                 print "Copying "+filename+" from sourceforge"
-                contents=urllib2.urlopen("http://xmltvdk.svn.sourceforge.net/viewvc/*checkout*/xmltvdk/trunk/"+filename).read()
+                path="https://sourceforge.net/p/xmltvdk/code/HEAD/tree/trunk/"+filename+"?format=raw"
+                contents=urllib2.urlopen(path).read()
                 file=open(filename,"w")
                 file.write(contents)
                 file.close()
