@@ -307,15 +307,15 @@ sub get_schedules($$$)
     };
 
     if (!$parsed || ("HASH" ne ref $parsed))  {
-	&warning("(BUG?) Parser barfed while processing channel " .
+	warn("(BUG?) Parser barfed while processing channel " .
 		 $chan->{'_name'}. " date ". $date . " (empty result?) URL: $url\n");
 	print STDERR "Content: $content\n";
 	print STDERR Dumper $parsed;
 	return \@results;
     } elsif ( ("ARRAY" ne ref ($parsed->{'TimeSection'} )) ) {
-	    &warning("(BUG?) Parser barfed while processing channel " .
+	    warn("(BUG?) Parser barfed while processing channel " .
 		    $chan->{'_name'}. " date ". $date . " (empty result?) URL: $url\n");
-	    &warning("Result type: " . ref ($parsed) . "\n");
+	    warn("Result type: " . ref ($parsed) . "\n");
 	    print STDERR "Content: $content\n";
 	    print STDERR Dumper $parsed;
 	return \@results;
@@ -457,9 +457,9 @@ sub get_schedules($$$)
 	    }
 
 	    # Sanity checks..
-	    if (!$p{'start'}) { warning("No 'START' attribute"); next; }
-	    if (!$p{'stop'}) { warning("No 'START' attribute"); next; }
-	    if (!$p{'title'}) { warning("No 'TITLE' attribute"); next; }
+	    if (!$p{'start'}) { warn("No 'START' attribute"); next; }
+	    if (!$p{'stop'}) { warn("No 'START' attribute"); next; }
+	    if (!$p{'title'}) { warn("No 'TITLE' attribute"); next; }
 
 	    #print Dumper \%p;
 	    push(@results, \%p);
@@ -489,6 +489,7 @@ if (defined $opt->{'output'}) {
     die "Cannot write to $opt->{'output'}" if not $fh;
     $writer_args{'OUTPUT'} = $fh;
 }
+
 my $writer = new XMLTV::Writer(%writer_args);
 
 $writer->start(\%grabber_tags);
@@ -513,7 +514,7 @@ for (my $c=0; $c<$opt->{'days'}; $c++) {
     foreach my $cid (@channels) {
 	my $chan = $chanlist->{$cid};
 	if (!$chan) {
-	    &warning("Unknown channel $cid\n");
+	    warn("Unknown channel $cid\n");
 	} else {
 	    #print "ID: $cid Name: " .
 	    #$chan->{'display-name'}[0][0]."\n";
