@@ -47,6 +47,7 @@ use Data::Dumper;
 my $debug = 0; # Plenty of extra output.
 
 my $grabber_name = 'tv_grab_dk_ritzau';
+my $id_postfix = '.ritzau.dk';
 my $default_root_url = 'https://www.ritzau.dk/tvguide/';
 
 my %grabber_tags = (
@@ -156,11 +157,12 @@ sub get_channel_list($)
     my $channels = get_ritzau_channel_list($conf);
     my %chanlist = ();
     foreach my $chan (@$channels) {
-        my $id = $chan->{'KanalID'};
+        my $id = $chan->{'KanalID'} . $id_postfix;
         $chanlist{$id} = {
             id             => $id,
             icon           => [ { src => $chan->{logo32} } ],
             'display-name' => [ [ $chan->{KanalNavn}, 'da' ] ],
+            '_chan_id'     => $chan->{'KanalID'},
         };
     }
 
@@ -244,7 +246,7 @@ sub get_schedules($$$)
     $date->add( days => $day );
 
     my $url = $conf->{'root-url'}->[0] .
-        'Program/GetProgramsForWholeDayAjax?channelId=' . $chan->{id} . '&date=' . $date->ymd('') . '&time=00:00&clientId=null';
+        'Program/GetProgramsForWholeDayAjax?channelId=' . $chan->{_chan_id} . '&date=' . $date->ymd('') . '&time=00:00&clientId=null';
     print STDERR "Get: $url\n" if $debug;
     my $content = getUrl($url) || return 0;
     print STDERR "Got: $content\n" if $debug;
