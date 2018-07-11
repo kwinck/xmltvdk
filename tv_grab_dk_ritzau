@@ -1,0 +1,401 @@
+#!/usr/bin/perl
+
+#  Copyright (C) 2018 Klaus S. Madsen
+#
+#  Derived from "tv_grab_dk_dr_2012" by Morten Grouleff (morten@grouleff.com)
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+######################################################################
+# Udover XMLTV kræves JSON og DateTime, som på
+# Debian / Ubuntu kan installeres med:
+#   sudo aptitude install libjson-perl libdatetime-perl
+#
+# Kun testet på Linux.
+# Kommentarer til: Klaus S. Madsen <ksm@42.dk>
+
+use strict;
+use warnings;
+
+binmode(STDOUT, ":utf8");
+binmode(STDERR, ":utf8");
+
+use JSON;
+use XMLTV;
+use XMLTV::Options qw/ParseOptions/;
+use XMLTV::Configure::Writer;
+
+use LWP::UserAgent;
+use IO::Scalar;
+
+use DateTime;
+use Try::Tiny;
+use Data::Dumper;
+
+my $debug = 0; # Plenty of extra output.
+
+my $grabber_name = 'tv_grab_dk_ritzau';
+my $default_root_url = 'https://www.ritzau.dk/tvguide/';
+
+my %grabber_tags = (
+    'source-info-url'     => 'https://www.ritzau.dk/tvguide/',
+    'source-info-name'    => 'Ritzau TV Oversigt',
+    'generator-info-name' => 'XMLTV',
+    'generator-info-url'  =>
+        'http://niels.dybdahl.dk/xmltvdk/',
+);
+
+# Time zone the server uses
+my $server_tz = 'Europe/Copenhagen';
+my $LocalTZ = DateTime::TimeZone->new( name => $server_tz );
+
+sub config_stage
+{
+    my( $stage, $conf ) = @_;
+    my $result;
+
+    $stage eq "start" || die "Unknown stage $stage";
+
+    my $writer = new XMLTV::Configure::Writer( OUTPUT => \$result,
+                                               encoding => 'utf-8' );
+    if( $stage eq 'start' ) {
+        $writer->start( { grabber => $grabber_name } );
+        $writer->start_selectone( {
+            id => 'accept-copyright-disclaimer',
+            title => [ [ 'Acceptér ansvarsfraskrivelse', 'da'],
+                       [ 'Accept disclaimer', 'en'] ],
+            description => [
+                [ "Data fra Ritzau's programoversigt er "
+                      . "beskyttet af loven om ophavsret, "
+                      . "og må kun anvendes til personlige, "
+                      . "ikke-kommercielle formål. "
+                      . "Dette programs forfatter(e) kan ikke "
+                      . "holdes ansvarlig for evt. misbrug.", 'da' ],
+                [ "Data from Ritzau's program guide is "
+                      . "protected by copyright law and may "
+                      . "only be used for personal, non-commercial "
+                      . "purposes. The author(s) "
+                      . "of this program accept no responsibility "
+                      . "for any mis-use.", 'en' ] ] } );
+        $writer->write_option( {
+            value=>'reject',
+            text=> [ [ 'Jeg accepterer IKKE betingelserne', 'da'],
+                     [ 'I do NOT accept these conditions', 'en'] ] } );
+        $writer->write_option( {
+            value=>'accept',
+            text=> [ [ 'Jeg accepterer betingelserne', 'da'],
+                     [ 'I accept these conditions', 'en'] ] } );
+        $writer->end_selectone();
+
+        $writer->write_string( {
+            id => 'root-url',
+            title => [ [ 'Root URL for grabbing data', 'en' ],
+                       [ 'Grund-URL for grabberen', 'da' ] ],
+            description => [
+                [ 'Provide the URL of Ritzau\'s program guide '
+                      . 'data data engine, '
+                      . 'including the trailing slash.', 'en' ],
+                [ 'Indtast URL\'en på Ritzau\'s tv-oversigs data '
+                      . 'engine, inklusive den '
+                      . 'efterfølgende skråstreg.', 'da' ] ],
+            default => $default_root_url } );
+    }
+    $writer->end( 'select-channels' );
+
+    return $result;
+}
+
+sub getUrl($) {
+    my ( $url ) = @_;
+    my $ua = LWP::UserAgent->new;
+    $ua->agent("xmltv/$XMLTV::VERSION");
+    my $req = HTTP::Request->new(GET => $url);
+    $req->header('Accept' => 'Accept=text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8');
+    $req->header('Accept-Charset' => 'utf-8');
+    my $res = $ua->request($req);
+    if ($res->is_success) {
+        return Encode::decode('utf-8', $res->content());
+    } else {
+        print STDERR "Error: " . $res->status_line . " on url: " . $url . "\n";
+        return 0;
+    }
+}
+
+sub list_channels($$) {
+    my( $conf, $opt ) = @_;
+    my $chanlist = &get_channel_list($conf);
+    my $result="";
+    my $fh = new IO::Scalar \$result;
+    my $oldfh = select( $fh );
+    my $writer = new XMLTV::Writer(OUTPUT => $fh, encoding => 'utf-8');
+    $writer->start(\%grabber_tags);
+    $writer->write_channels($chanlist);
+    $writer->end();
+    select( $oldfh );
+    $fh->close();
+
+    #print "RESULT:\n$result\n";
+    return $result;
+}
+
+sub get_channel_list($)
+{
+    my ( $conf ) = @_;
+    my $channels = get_ritzau_channel_list($conf);
+    my %chanlist = ();
+    foreach my $chan (@$channels) {
+        my $id = $chan->{'KanalID'};
+        $chanlist{$id} = {
+            id             => $id,
+            icon           => [ { src => $chan->{logo32} } ],
+            'display-name' => [ [ $chan->{KanalNavn}, 'da' ] ],
+        };
+    }
+
+    return \%chanlist;
+}
+
+sub unquote($) {
+    my $string = shift;
+    $string =~ s/^"(.*)"$/$1/;
+    $string =~ s/\\(["\\])/$1/g;
+
+    return $string;
+}
+
+sub get_ritzau_cookieid($) {
+    my $conf = shift;
+
+    my $ua = LWP::UserAgent->new;
+    $ua->agent("xmltv/$XMLTV::VERSION");
+    my $req = HTTP::Request->new(GET => $conf->{'root-url'}->[0]);
+    my $res = $ua->request($req);
+
+    die "Could not get cookie" unless $res->is_success;
+    my $cookie = $res->header('Set-Cookie');
+    my ($id) = $cookie =~ m/id=([^&]*)&/;
+    return $id;
+}
+
+sub get_ritzau_channel_list($)
+{
+    my ( $conf ) = @_;
+    my @results = ();
+
+    my $cookieid = get_ritzau_cookieid($conf);
+
+    my $url = $conf->{'root-url'}->[0] . 'Main/GetChannelsListAjaxCall?Id=' . $cookieid . '&clientId=null';
+    print STDERR "Get: $url\n" if $debug;
+    my $content = getUrl($url) || return 0;
+    print STDERR "Got: $content\n"  if $debug;
+    my $channels = ();
+    try {
+        my $unquoted = unquote( $content );
+        $channels = from_json( $unquoted );
+    } catch {
+        warn "Failed to get channels: $_";
+    };
+    my $c = $channels->{'channels'};
+    push(@results, @$c);
+
+    return \@results;
+}
+
+sub date_to_xmltv($) {
+    # Format: 07/11/2018 08:00 am -> 20180711080000 +0200
+    my $d = shift;
+    if ($d =~ m+^(\d{2})/(\d{2})/(\d{4}) (\d{2}):(\d{2}) (am|pm)$+) {
+        my $hour = $4;
+        $hour += 12 if $6 eq "pm";
+        my $dt = DateTime->new(
+            year   => $3,
+            month  => $1,
+            day    => $2,
+            hour   => $4,
+            minute => $5,
+            second => 0,
+        );
+        $dt->set_time_zone($LocalTZ);
+        return $dt->format_cldr('yyyyMMddHHmmss ZZZ');
+    } else {
+        die "Cannot parse date $d";
+    }
+}
+
+sub get_schedules($$$)
+{
+    my ($conf,  $chan, $day ) = @_;
+
+    my @schedules = ();
+
+    my $date = DateTime->today();
+    $date->add( days => $day );
+
+    my $url = $conf->{'root-url'}->[0] .
+        'Program/GetProgramsForWholeDayAjax?channelId=' . $chan->{id} . '&date=' . $date->ymd('') . '&time=00:00&clientId=null';
+    print STDERR "Get: $url\n" if $debug;
+    my $content = getUrl($url) || return 0;
+    print STDERR "Got: $content\n" if $debug;
+
+    my @results = ();
+    my $parsed = ();
+    try {
+        my $unquoted = unquote( $content );
+        $parsed = from_json( $unquoted );
+    } catch {
+        # Ignoring failed json parses.
+    };
+
+    foreach my $program (@{$parsed->{programs}}) {
+        #print STDERR Dumper $program;
+        my %p = (
+            channel => $chan->{'id'},
+            start   => date_to_xmltv($program->{fullstarttid}),
+            stop    => date_to_xmltv($program->{fullendtid}),
+        );
+
+
+        my @title;
+        push (@title, [ $program->{titel}, 'da' ]);
+        if (my $title = $program->{'originaltitel'}) {
+            my $original_lang = 'en'; # guess_original_language($listing);
+            if (!$original_lang) {
+                $original_lang = 'en';
+            }
+            push (@title, [ $title, $original_lang ]);
+        }
+        $p{'title'} = \@title;
+
+        if (my $subtitle = $program->{'kortomtale'}) {
+            $p{'sub-title'} = [ [ $subtitle, 'da' ] ];
+        }
+
+        if (my $description = $program->{langomtale1}) {
+            $p{'desc'} = [ [ $description, 'da' ] ];
+        }
+
+        ########################################
+        # Episode
+        if (my $e = $program->{episodenr}) {
+            my $season = $program->{seasonnr};
+            my $numepisodes = $program->{antalepisoder};
+
+            my $episode_str = "";
+            $episode_str .= $season - 1 if $season;
+            $episode_str .= " . ";
+            $episode_str .= $e - 1;
+            $episode_str .= "/" . ($numepisodes - 1) if $numepisodes;
+            $episode_str .= " . ";
+
+            $p{'episode-num'} = [ [ $episode_str, "xmltv_ns" ] ];
+        }
+
+        ########################################
+        # Genudsendelse, HD, etc.
+        if ($program->{'genudsendelse'}) {
+            $p{'previously-shown'} = {};
+        }
+        if ($program->{'HD'}) {
+            $p{'video'}{'quality'} = 'HDTV';
+        }
+        if ($program->{'bredformat'}) {
+            $p{'video'}{'aspect'} = '16:9';
+        }
+
+        ########################################
+        # Genre/kategori
+        if ($program->{'hovedgenre'}) {
+            $p{'category'} = [ [ $program->{'hovedgenre'}, 'da']];
+        }
+
+
+        # Sanity checks..
+        if (!$p{'start'}) { warn("No 'START' attribute"); next; }
+        if (!$p{'stop'}) { warn("No 'START' attribute"); next; }
+        if (!$p{'title'}) { warn("No 'TITLE' attribute"); next; }
+
+        #print Dumper \%p;
+        push(@results, \%p);
+    }
+    return \@results;
+}
+
+my $opt;
+my $conf;
+( $opt, $conf ) = ParseOptions( {
+    grabber_name => $grabber_name,
+    capabilities => [qw/baseline manualconfig tkconfig apiconfig/],
+    stage_sub => \&config_stage,
+    listchannels_sub => \&list_channels,
+    version => '$Id: ' . $grabber_name . ',v 0.0.1 2018-07-11',
+    description => "TV Oversigten fra Ritzau ".
+        "(https://www.ritzau.dk/tvguide/)",
+} );
+
+my %writer_args = ( encoding => 'utf-8' );
+if (defined $opt->{'output'}) {
+    my $fh = IO::File->new($opt->{'output'}, ">:utf8");
+    die "Cannot write to $opt->{'output'}" if not $fh;
+    $writer_args{'OUTPUT'} = $fh;
+}
+
+my $writer = new XMLTV::Writer(%writer_args);
+
+$writer->start(\%grabber_tags);
+
+#print "Grabbing channel list\n";
+my $chanlist = &get_channel_list($conf) || die "Couldn't get channel list";
+
+# Check channels specified are valid
+my @channels = ();
+foreach my $cid (@{$conf->{'channel'}}) {
+    my $chan = $chanlist->{$cid};
+    if (!$chan) {
+        warn("Unknown channel ".$cid." in config file\n");
+    } else {
+        $writer->write_channel($chan);
+        push (@channels, $cid);
+    }
+}
+
+# data uses offset from today in days.
+for (my $c=0; $c<$opt->{'days'}; $c++) {
+    foreach my $cid (@channels) {
+        my $chan = $chanlist->{$cid};
+        if (!$chan) {
+            warn("Unknown channel $cid\n");
+        } else {
+            #print "ID: $cid Name: " .
+            #$chan->{'display-name'}[0][0]."\n";
+            my $day = $c;
+            $day += $opt->{offset} if ($opt->{offset});
+            my $schedules = get_schedules($conf, $chan, $day);
+            if ("ARRAY" ne ref($schedules)) {
+                warn("Schedules for $cid on day $c not valid - empty?\n");
+                next;
+            }
+            foreach my $s (@$schedules) {
+                #print Dumper $s;
+                if ("HASH" ne ref($s)) {
+                    warn("Weird listing:\n");
+                    print STDERR Dumper $s;
+                } else {
+                    $writer->write_programme($s);
+                }
+            }
+        }
+    }
+}
+$writer->end();
