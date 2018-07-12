@@ -294,14 +294,14 @@ sub get_schedules($$$)
         $p{'title'} = \@title;
 
         my $episode_in_subtitle = $conf->{'episode-in-subtitle'};
-        my $episode_str = defined $episode_in_subtitle && defined $episode_in_subtitle->[0];
+        my $episode_str = $episode_in_subtitle && $episode_in_subtitle->[0] // '';
         if (my $subtitle = $program->{'kortomtale'}) {
             if (my $e = $program->{episodenr}) {
                 $subtitle .= ". $episode_str: "  . $e if $episode_str;
             }
             $p{'sub-title'} = [ [ $subtitle, 'da' ] ];
         } elsif (my $e = $program->{episodenr}) {
-            $p{'sub-title'} = [ [ "Episode: " . $e, 'da' ] ] if $episode_str;
+            $p{'sub-title'} = [ [ "$episode_str: " . $e, 'da' ] ] if $episode_str;
         }
 
         if (my $description = $program->{langomtale1}) {
