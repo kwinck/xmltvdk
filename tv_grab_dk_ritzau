@@ -173,7 +173,7 @@ sub get_channel_list($)
         my $id = $chan->{'KanalID'} . $id_postfix;
         $chanlist{$id} = {
             id             => $id,
-            icon           => [ { src => $chan->{logo32} } ],
+#            icon           => [ { src => $chan->{logo32} } ],
             'display-name' => [ [ $chan->{KanalNavn}, 'da' ] ],
             '_chan_id'     => $chan->{'KanalID'},
         };
