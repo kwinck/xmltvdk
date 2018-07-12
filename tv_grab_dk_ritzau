@@ -112,6 +112,19 @@ sub config_stage
                       . 'engine, inklusive den '
                       . 'efterfølgende skråstreg.', 'da' ] ],
             default => $default_root_url } );
+        $writer->write_string( {
+            id => 'episode-in-subtitle',
+            title => [ [ 'Should we include the episode number as default subtitle', 'en' ],
+                       [ 'Indsæt afsnits-nr som undertitel?', 'da' ] ],
+            description => [
+                [ '  When set, insert the episode number as a subtitle '
+                      . 'with the configured string as prefix. '
+                      . 'When there is a subtitle already, prepend the '
+                      . 'episode number. Leave empty to disable this feature.', 'en' ],
+                [ '  Denne tekst vælger hvad der skal indsættes i undertitlen foran afsnitsnummeret. '
+                      . '  Når der er en undertitel i forvejen, indsættes dette blot før denne.'
+                      . '  Sæt til tom for at slå indsættelsen fra. ', 'da' ] ],
+            default => '' } );
     }
     $writer->end( 'select-channels' );
 
@@ -280,8 +293,15 @@ sub get_schedules($$$)
         }
         $p{'title'} = \@title;
 
+        my $episode_in_subtitle = $conf->{'episode-in-subtitle'};
+        my $episode_str = defined $episode_in_subtitle && defined $episode_in_subtitle->[0];
         if (my $subtitle = $program->{'kortomtale'}) {
+            if (my $e = $program->{episodenr}) {
+                $subtitle .= ". $episode_str: "  . $e if $episode_str;
+            }
             $p{'sub-title'} = [ [ $subtitle, 'da' ] ];
+        } elsif (my $e = $program->{episodenr}) {
+            $p{'sub-title'} = [ [ "Episode: " . $e, 'da' ] ] if $episode_str;
         }
 
         if (my $description = $program->{langomtale1}) {
