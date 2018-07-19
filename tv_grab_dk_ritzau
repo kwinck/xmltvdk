@@ -296,16 +296,20 @@ sub get_schedules($$$)
 
         my $episode_in_subtitle = $conf->{'episode-in-subtitle'};
         my $episode_str = $episode_in_subtitle && $episode_in_subtitle->[0] // '';
-        if (my $subtitle = $program->{'kortomtale'}) {
+        #if (my $subtitle = $program->{'kortomtale'}) {
+        if (my $subtitle = $program->{'episodenr'}) {
             if (my $e = $program->{episodenr}) {
-                $subtitle .= ". $episode_str: "  . $e if $episode_str;
+##KW FIks Slettet prepend på $subtitle
+                $subtitle = "$episode_str "  . $e  if $episode_str;
             }
+	#Kw exit kortomtalte i sub-title
             $p{'sub-title'} = [ [ $subtitle, 'da' ] ];
         } elsif (my $e = $program->{episodenr}) {
-            $p{'sub-title'} = [ [ "$episode_str: " . $e, 'da' ] ] if $episode_str;
+            $p{'sub-title'} = [ [ " $episode_str: " . $e , 'da' ] ] if $episode_str;
         }
-
-        if (my $description = $program->{langomtale1}) {
+#Kw Kort omtale i enden af lang omtale
+        if (my $description = $program->{langomtale1}  ) {
+              $description .=' ' . $program->{'kortomtale'};
             $p{'desc'} = [ [ $description, 'da' ] ];
         }
 
