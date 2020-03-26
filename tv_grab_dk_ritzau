@@ -235,15 +235,28 @@ sub date_to_xmltv($) {
         my $hour = $4;
         $hour += 12 if $6 eq "pm" && $hour != 12;
         $hour = 0 if $6 eq "am" && $hour == 12;
-        my $dt = DateTime->new(
-            year   => $3,
-            month  => $1,
-            day    => $2,
-            hour   => $hour,
-            minute => $5,
-            second => 0,
-        );
-        $dt->set_time_zone($LocalTZ);
+        my $dt;
+        try {
+            $dt = DateTime->new(
+                year   => $3,
+                month  => $1,
+                day    => $2,
+                hour   => $hour,
+                minute => $5,
+                second => 0,
+            );
+            $dt->set_time_zone($LocalTZ);
+        } catch {
+            $dt = DateTime->new(
+                year   => $3,
+                month  => $1,
+                day    => $2,
+                hour   => $hour + 1,
+                minute => $5,
+                second => 0,
+            );
+            $dt->set_time_zone($LocalTZ);
+        };
         return $dt->format_cldr('yyyyMMddHHmmss ZZZ');
     } else {
         die "Cannot parse date $d";
